@@ -1,0 +1,535 @@
+/* css/admin.css */
+
+/* Reset & Base within Admin */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  overflow-x: hidden;
+}
+
+/* Layout — mobile-first: base é celular/tablet (sidebar vira barra
+   horizontal rolável no topo); a partir de 1024px ela volta a ser uma
+   coluna lateral fixa, como só faz sentido numa tela larga o bastante. */
+.admin-layout {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 100%;
+  height: auto;
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 16px;
+  transition: all 0.3s ease;
+  z-index: 100;
+}
+
+.sidebar-header {
+  padding: 12px;
+  border: none;
+}
+
+.brand-logo {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: -0.5px;
+}
+
+.brand-subtitle {
+  display: none;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+.sidebar-nav {
+  padding: 0;
+  display: flex;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: auto;
+  padding: 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nav-item svg {
+  width: 20px;
+  height: 20px;
+  opacity: 0.8;
+}
+
+.nav-item:hover {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.nav-item.active {
+  background-color: var(--color-primary-light);
+  border-bottom-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.sidebar-footer {
+  display: none;
+  padding: 20px 24px;
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.admin-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.admin-role {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.top-header {
+  height: 72px;
+  padding: 0 32px;
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.page-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+/* O botão de tema aqui é o mesmo .theme-toggle do tótem, mas dentro do
+   fluxo normal do cabeçalho em vez de fixo — o admin não tem relógio
+   flutuante colidindo, então não precisa da barra de status própria. */
+.header-actions .theme-toggle {
+  position: static;
+  box-shadow: none;
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.peak-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-surface-elevated);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-text-muted);
+}
+
+.peak-indicator.is-peak {
+  color: var(--color-warning);
+  background-color: var(--color-warning-light);
+}
+
+.peak-indicator.is-peak .indicator-dot {
+  background-color: var(--color-warning);
+  box-shadow: 0 0 8px var(--color-warning);
+}
+
+.peak-indicator.is-offpeak {
+  color: var(--color-success);
+  background-color: var(--color-success-light);
+}
+
+.peak-indicator.is-offpeak .indicator-dot {
+  background-color: var(--color-success);
+  box-shadow: 0 0 8px var(--color-success);
+}
+
+.live-clock {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.btn-outline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-outline:hover {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-border-hover);
+}
+
+.content-container {
+  flex: 1;
+  padding: 32px;
+  overflow-y: auto;
+}
+
+/* Sections */
+.section {
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.section.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Grid & Cards */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.kpi-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+.kpi-label {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.dashboard-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.card-panel {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+}
+
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 0;
+  margin-bottom: 24px;
+}
+
+/* Status Grid */
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.status-card {
+  background-color: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.status-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+}
+
+.status-card.available::before { background-color: var(--color-success); }
+.status-card.charging::before { background-color: var(--color-primary); }
+.status-card.maintenance::before { background-color: var(--color-danger); }
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.status-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.badge.success { background: var(--color-success-light); color: var(--color-success); }
+.badge.primary { background: var(--color-primary-light); color: var(--color-primary); }
+.badge.danger { background: var(--color-danger-light); color: var(--color-danger); }
+
+.status-details {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+.status-details p { margin: 4px 0; }
+
+/* Tables */
+.table-responsive {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table th, .data-table td {
+  padding: 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.data-table th {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  background-color: var(--color-surface-elevated);
+  cursor: pointer;
+  user-select: none;
+}
+
+.data-table th:hover {
+  color: var(--color-text);
+}
+
+.data-table tbody tr {
+  transition: background-color 0.2s;
+}
+
+.data-table tbody tr:hover {
+  background-color: var(--color-surface-hover);
+}
+
+/* Canvas Charts */
+.chart-container {
+  width: 100%;
+  height: 250px;
+  position: relative;
+}
+.chart-container canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* Terminal Log */
+.terminal {
+  background-color: #050505;
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  font-family: var(--font-family-mono);
+  font-size: 0.85rem;
+  color: #00ff00;
+  height: 300px;
+  overflow-y: auto;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+}
+.terminal p {
+  margin: 4px 0;
+  line-height: 1.4;
+}
+.terminal .log-time { color: #888; }
+.terminal .log-src { color: #569cd6; }
+.terminal .log-msg { color: #cecece; }
+.terminal .log-highlight { color: #dcdcaa; }
+
+/* Station Specific Details */
+.stations-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.station-card-lg {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+}
+.station-card-lg header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.station-card-lg h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.battery-progress {
+  width: 100%;
+  height: 8px;
+  background-color: var(--color-surface-elevated);
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+  margin: 12px 0;
+}
+.battery-bar {
+  height: 100%;
+  background-color: var(--color-primary);
+  width: 0%;
+  transition: width 0.5s ease;
+}
+
+.btn-toggle {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-top: 16px;
+}
+.btn-toggle:hover {
+  background: var(--color-surface-hover);
+}
+
+/* Pricing Timeline */
+.timeline-bar {
+  height: 12px;
+  background: var(--color-success);
+  border-radius: var(--radius-sm);
+  position: relative;
+  margin: 40px 0 20px;
+}
+.timeline-peak {
+  position: absolute;
+  height: 100%;
+  background: var(--color-warning);
+}
+.timeline-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+/* A partir daqui cabe uma coluna lateral fixa com conforto — mesmo breakpoint
+   numérico de antes (1024px), só invertido pra lógica mobile-first. */
+@media (min-width: 1024px) {
+  .admin-layout { flex-direction: row; height: 100vh; overflow: hidden; }
+  .sidebar { width: 260px; height: auto; flex-direction: column; align-items: stretch; padding: 0; border-right: 1px solid var(--color-border); border-bottom: none; }
+  .sidebar-header { padding: 24px; border-bottom: 1px solid var(--color-border); }
+  .brand-subtitle { display: block; }
+  .sidebar-nav { flex: 1; padding: 24px 0; display: block; overflow-x: visible; overflow-y: auto; white-space: normal; }
+  .nav-item { width: 100%; padding: 12px 24px; border-left: 3px solid transparent; border-bottom: none; }
+  .nav-item.active { border-left-color: var(--color-primary); border-bottom: none; }
+  .sidebar-footer { display: block; }
+  .dashboard-row { grid-template-columns: 2fr 1fr; }
+}

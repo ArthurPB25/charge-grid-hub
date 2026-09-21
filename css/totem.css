@@ -1,0 +1,686 @@
+#app-container {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+.screen {
+  position: absolute;
+  top: var(--topbar-height);
+  left: 0;
+  width: 100%;
+  height: calc(100% - var(--topbar-height));
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(20px);
+  transition: opacity var(--transition-slow), transform var(--transition-slow);
+  padding: var(--space-xl);
+}
+
+.screen.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2xl);
+  gap: var(--space-sm);
+}
+.app-header .btn-back,
+.app-header .step-indicator {
+  flex-shrink: 0;
+}
+
+.header-title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-text);
+  /* Em celular estreito, "Voltar" + título + bolinhas de passo disputam
+     pouco espaço — encolhe e trunca em vez de empurrar os vizinhos e
+     sobrepor. No iPad (768px+) já cabe o tamanho cheio, ver @media abaixo. */
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 var(--space-sm);
+}
+
+@media (min-width: 768px) {
+  .header-title {
+    font-size: var(--font-size-2xl);
+  }
+}
+
+.step-indicator {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.step-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--color-surface-elevated);
+  transition: background-color var(--transition-normal);
+}
+.step-dot.active {
+  background-color: var(--color-primary);
+  box-shadow: 0 0 8px var(--color-primary-light);
+}
+
+/* Welcome Screen */
+.welcome-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  margin-top: var(--space-2xl);
+}
+.brand-logo {
+  font-size: var(--font-size-4xl);
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--color-text), var(--color-text-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.brand-icon {
+  font-size: 3rem;
+  color: var(--color-primary);
+}
+
+.availability-display {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.availability-circle {
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(var(--color-success-rgb), 0.1), transparent);
+  border: 2px solid var(--color-success);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: pulse 2s infinite;
+  margin-bottom: var(--space-2xl);
+}
+.availability-count {
+  font-size: 4rem;
+  font-weight: 800;
+  color: var(--color-success);
+  line-height: 1;
+}
+.availability-label {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-sm);
+}
+
+/* Tarifa vigente na tela inicial: só informação, sem escolha nem detalhe
+   operacional — é o único número que importa pra decidir se carrega agora. */
+.welcome-tariff {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-md) var(--space-xl);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  margin-bottom: var(--space-3xl);
+  box-shadow: var(--shadow-sm);
+}
+.welcome-tariff-label {
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+.welcome-tariff-value {
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  color: var(--color-primary);
+}
+.welcome-tariff-value small {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-left: 2px;
+}
+
+.welcome-action {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+.btn-large {
+  font-size: var(--font-size-xl);
+  padding: 24px 64px;
+  border-radius: var(--radius-full);
+}
+.app-footer {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Station Selection Screen */
+.content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.stations-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-lg);
+}
+
+.stations-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: var(--space-3xl) var(--space-lg);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+  line-height: 1.6;
+}
+
+.station-card {
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.station-card.selected {
+  border-color: var(--color-primary);
+  background: linear-gradient(180deg, rgba(var(--color-primary-rgb), 0.12), transparent);
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+.station-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-md);
+}
+.station-title {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+.station-location {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+.station-details {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+.detail-item {
+  background-color: var(--color-surface-elevated);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.estimate-panel {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-md);
+  border: 1px solid var(--color-border);
+}
+.estimate-panel .btn {
+  width: 100%;
+}
+@media (min-width: 768px) {
+  .estimate-panel {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .estimate-panel .btn {
+    width: auto;
+  }
+}
+.estimate-item {
+  display: flex;
+  flex-direction: column;
+}
+.estimate-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+.estimate-val {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+/* Payment Screen */
+.payment-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: var(--space-xl);
+  align-items: center;
+  /* "safe center": centraliza quando cabe, mas encosta no topo em vez de
+     cortar o começo do conteúdo quando ele é mais alto que a tela — sem
+     isso, o painel de pagamento pendente ficava com o topo inacessível
+     mesmo rolando. */
+  justify-content: safe center;
+  overflow-y: auto;
+}
+.summary-card {
+  margin-bottom: var(--space-xl);
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.summary-row:last-child {
+  border-bottom: none;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+/* Monitoring Screen */
+.monitoring-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xl);
+}
+
+.progress-ring-container {
+  position: relative;
+  width: 320px;
+  height: 320px;
+}
+.progress-ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.progress-ring-bg {
+  fill: none;
+  stroke: var(--color-surface-elevated);
+  stroke-width: 12;
+}
+.progress-ring-fill {
+  fill: none;
+  stroke: var(--color-success);
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke-dasharray: 879; /* 2 * PI * 140 */
+  stroke-dashoffset: 879;
+  transition: stroke-dashoffset 0.5s ease-out;
+  filter: drop-shadow(0 0 8px rgba(var(--color-success-rgb), 0.6));
+}
+.progress-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.progress-percent {
+  font-size: 4rem;
+  font-weight: 800;
+  color: var(--color-success);
+}
+.progress-power {
+  font-size: var(--font-size-xl);
+  color: var(--color-text-secondary);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+  width: 100%;
+  max-width: 600px;
+}
+.stat-box {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  text-align: center;
+}
+.stat-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin-bottom: 4px;
+}
+.stat-value {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-normal);
+}
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.modal-content {
+  width: 100%;
+  max-width: 500px;
+  transform: scale(0.9);
+  transition: transform var(--transition-normal);
+}
+.modal-overlay.active .modal-content {
+  transform: scale(1);
+}
+.modal-header {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+.modal-icon {
+  width: 64px;
+  height: 64px;
+  background-color: var(--color-success-light);
+  color: var(--color-success);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin: 0 auto var(--space-md);
+}
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-top: var(--space-xl);
+}
+
+/* Payment Method Selection */
+.payment-methods {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  max-width: 700px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.payment-methods-title {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: var(--space-md);
+}
+
+.payment-methods-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-lg);
+  width: 100%;
+}
+
+.payment-method-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-xl) var(--space-lg);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  text-align: center;
+  min-height: 200px;
+  justify-content: center;
+}
+.payment-method-card:hover {
+  border-color: var(--color-border-hover);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+.payment-method-card.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.method-icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-elevated);
+}
+.payment-method-card.selected .method-icon {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.method-name {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+.method-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* PIX Logo */
+.pix-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-weight: 700;
+  font-size: var(--font-size-xl);
+}
+.pix-logo-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.payment-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-xl);
+  text-align: center;
+}
+.payment-status-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--color-surface-elevated);
+  border-top: 4px solid var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+.payment-status-success {
+  width: 64px;
+  height: 64px;
+  background: var(--color-success-light);
+  color: var(--color-success);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  animation: fadeIn 0.3s ease;
+}
+
+/* Vehicle Selection */
+.vehicle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+  overflow-y: auto;
+  max-height: 45vh;
+  padding: var(--space-xs);
+}
+
+.vehicle-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  text-align: center;
+  min-height: 140px;
+  justify-content: center;
+}
+.vehicle-card:hover {
+  border-color: var(--color-border-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.vehicle-card.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+.vehicle-card .vehicle-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+.vehicle-card .vehicle-brand {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+.vehicle-card .vehicle-model {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+}
+.vehicle-card .vehicle-battery-info {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.vehicle-info-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-md);
+  animation: slideUp 0.3s ease;
+}
+
+.vehicle-info-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xl);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+.vehicle-emoji {
+  font-size: 3rem;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-lg);
+}
+.vehicle-selected-name {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+.charge-calc-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-lg);
+  color: var(--color-text-secondary);
+}
+
+.charge-calc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+.calc-item {
+  background: var(--color-bg);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+.calc-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+.calc-value {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+/* Mobile-first: o layout base (acima) é pensado pra celular/retrato; a
+   partir daqui é o ganho de espaço real do iPad em retrato (768-834px),
+   que é o dispositivo que o tótem roda. */
+@media (min-width: 768px) {
+  .stations-grid { grid-template-columns: 1fr 1fr; }
+  .payment-methods-grid { grid-template-columns: repeat(3, 1fr); }
+  .vehicle-grid { grid-template-columns: repeat(4, 1fr); }
+  .charge-calc-grid { grid-template-columns: repeat(3, 1fr); }
+}

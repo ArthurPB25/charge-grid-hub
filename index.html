@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>ChargeGrid Hub — Carregamento Inteligente</title>
+  <meta name="description" content="Sistema de carregamento inteligente para veículos elétricos - Powered by GoodWe">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="css/index.css">
+  <link rel="stylesheet" href="css/totem.css">
+  <link rel="stylesheet" href="css/sim.css">
+</head>
+<body>
+  <div class="totem-topbar">
+    <div class="sim-clock"><span class="material-symbols-outlined">schedule</span><span id="sim-clock">--:--</span></div>
+    <button class="theme-toggle" id="theme-toggle" title="Alternar tema"><span class="material-symbols-outlined">dark_mode</span></button>
+  </div>
+  <div id="app-container">
+    
+    <!-- Screen 1: Welcome -->
+    <div id="screen-welcome" class="screen active">
+      <div class="welcome-brand">
+        <span class="brand-icon material-symbols-outlined">bolt</span>
+        <div class="brand-logo">ChargeGrid Hub</div>
+      </div>
+      
+      <div class="availability-display">
+        <div class="availability-circle">
+          <div class="availability-count" id="welcome-count">2</div>
+          <div class="availability-label" id="welcome-label">Estações Disponíveis</div>
+        </div>
+
+        <!-- Só informação que interessa a quem vai carregar: quanto custa
+             agora. Sem seleção, sem detalhe operacional — isso é a tela de
+             chamada para ação, não o painel do operador. -->
+        <div class="welcome-tariff" id="welcome-tariff">
+          <span class="welcome-tariff-label" id="welcome-tariff-posto">Tarifa agora</span>
+          <span class="welcome-tariff-value" id="welcome-tariff-value">R$ 0,00<small>/kWh</small></span>
+        </div>
+      </div>
+
+      <div class="welcome-action">
+        <button class="btn btn-primary btn-large animate-slide-up" id="btn-start">Iniciar Carregamento</button>
+      </div>
+      <div class="app-footer">Powered by GoodWe</div>
+    </div>
+
+    <!-- Screen 2: Station Selection -->
+    <div id="screen-stations" class="screen">
+      <div class="app-header">
+        <button class="btn btn-outline btn-back" data-target="welcome">← Voltar</button>
+        <div class="header-title">Selecionar Estação</div>
+        <div class="step-indicator">
+          <div class="step-dot"></div>
+          <div class="step-dot active"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+        </div>
+      </div>
+
+      <div class="content-area">
+        <div class="stations-grid" id="stations-grid">
+          <!-- Populated by JS -->
+        </div>
+
+        <div class="estimate-panel">
+          <div class="estimate-item">
+            <span class="estimate-label">Tarifa Atual</span>
+            <span class="estimate-val text-primary" id="station-tariff">--</span>
+          </div>
+          <button class="btn btn-primary" id="btn-continue-payment" disabled>Continuar para Veículo →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 3: Vehicle Selection -->
+    <div id="screen-vehicle" class="screen">
+      <div class="app-header">
+        <button class="btn btn-outline btn-back" data-target="stations">← Voltar</button>
+        <div class="header-title">Selecionar Veículo</div>
+        <div class="step-indicator">
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot active"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+        </div>
+      </div>
+
+      <div class="content-area">
+        <div class="vehicle-grid" id="vehicle-grid">
+          <!-- Populated by JS: scrollable grid of vehicle cards -->
+        </div>
+
+        <!-- Vehicle info panel (appears after selection) -->
+        <div class="vehicle-info-panel" id="vehicle-info-panel" style="display: none;">
+          <div class="vehicle-info-header">
+            <div class="vehicle-emoji material-symbols-outlined" id="vehicle-emoji"></div>
+            <div>
+              <div class="vehicle-selected-name" id="vehicle-selected-name">--</div>
+              <div class="text-secondary" id="vehicle-selected-specs">--</div>
+            </div>
+          </div>
+
+          <div class="vehicle-charge-calc">
+            <div class="charge-calc-title" id="calc-title">Simulação de Carregamento</div>
+            <div class="charge-calc-grid">
+              <div class="calc-item">
+                <div class="calc-label">Bateria</div>
+                <div class="calc-value" id="calc-battery">-- kWh</div>
+              </div>
+              <div class="calc-item">
+                <div class="calc-label">Energia Necessária</div>
+                <div class="calc-value" id="calc-energy">-- kWh</div>
+              </div>
+              <div class="calc-item">
+                <div class="calc-label">Custo Estimado</div>
+                <div class="calc-value text-primary" id="calc-cost">R$ --</div>
+              </div>
+              <div class="calc-item">
+                <div class="calc-label">Tempo Estimado</div>
+                <div class="calc-value" id="calc-time">-- min</div>
+              </div>
+              <div class="calc-item">
+                <div class="calc-label">Autonomia Recuperada</div>
+                <div class="calc-value text-success" id="calc-range">-- km</div>
+              </div>
+              <div class="calc-item">
+                <div class="calc-label">Tarifa Atual</div>
+                <div class="calc-value" id="calc-rate">--/kWh</div>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" style="width: 100%;" id="btn-continue-vehicle">Continuar para Pagamento →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 3: Payment -->
+    <div id="screen-payment" class="screen">
+      <div class="app-header">
+        <button class="btn btn-outline btn-back" data-target="stations">← Voltar</button>
+        <div class="header-title">Pagamento</div>
+        <div class="step-indicator">
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot active"></div>
+          <div class="step-dot"></div>
+        </div>
+      </div>
+
+      <!-- Sub-screen: Payment Method Selection -->
+      <div id="payment-step-method" class="payment-content">
+        <div class="payment-methods">
+          <div class="payment-methods-title">Selecione a forma de pagamento</div>
+          <div class="payment-methods-grid">
+            <div class="payment-method-card" data-method="pix">
+              <div class="method-icon">
+                <svg class="pix-logo-icon" viewBox="0 0 512 512" fill="currentColor">
+                  <path d="M393.8 340.8l-76.6-76.6c-7.2-7.2-18.8-7.2-26 0l-76.6 76.6c-7.2 7.2-7.2 18.8 0 26l76.6 76.6c7.2 7.2 18.8 7.2 26 0l76.6-76.6c7.2-7.2 7.2-18.8 0-26zm-89.6 76.6l-50.6-50.6 50.6-50.6 50.6 50.6-50.6 50.6z"/>
+                  <path d="M304.2 68.6l-76.6 76.6c-7.2 7.2-7.2 18.8 0 26l76.6 76.6c7.2 7.2 18.8 7.2 26 0l76.6-76.6c7.2-7.2-7.2-18.8 0-26l-76.6-76.6c-7.2-7.2-18.8-7.2-26 0zm63.6 89.6l-50.6 50.6-50.6-50.6 50.6-50.6 50.6 50.6z"/>
+                  <path d="M181.8 171.2l76.6 76.6c7.2 7.2 7.2 18.8 0 26l-76.6 76.6c-7.2 7.2-18.8 7.2-26 0l-76.6-76.6c-7.2-7.2-7.2-18.8 0-26l76.6-76.6c7.2-7.2 18.8-7.2 26 0zm-63.6 89.6l50.6 50.6 50.6-50.6-50.6-50.6-50.6 50.6z"/>
+                </svg>
+              </div>
+              <div class="method-name">Pix</div>
+              <div class="method-desc">Pagamento instantâneo</div>
+            </div>
+
+            <div class="payment-method-card" data-method="debit">
+              <div class="method-icon"><span class="material-symbols-outlined">credit_card</span></div>
+              <div class="method-name">Débito</div>
+              <div class="method-desc">Cartão de débito</div>
+            </div>
+
+            <div class="payment-method-card" data-method="credit">
+              <div class="method-icon"><span class="material-symbols-outlined">credit_card</span></div>
+              <div class="method-name">Crédito</div>
+              <div class="method-desc">Cartão de crédito</div>
+            </div>
+          </div>
+
+          <div class="card summary-card" style="width: 100%; margin-top: var(--space-md);">
+            <div class="summary-row">
+              <span class="text-secondary">Estação</span>
+              <strong id="method-summary-station">--</strong>
+            </div>
+            <div class="summary-row">
+              <span class="text-secondary">Veículo</span>
+              <strong id="method-summary-vehicle">--</strong>
+            </div>
+            <div class="summary-row">
+              <span class="text-secondary">Valor Estimado</span>
+              <strong class="text-primary" id="method-summary-cost">--</strong>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" style="width: 100%; max-width: 400px;" id="btn-confirm-method" disabled>Confirmar Pagamento</button>
+          <button class="btn btn-outline" style="width: 100%; max-width: 400px;" id="btn-cancel-method">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- Sub-tela: integração de pagamento pendente.
+           O QR Code Pix e a maquininha de cartão eram encenações de uma
+           integração bancária que ainda não existe. Declarar a pendência é
+           mais defensável do que simular um fluxo que não foi construído. -->
+      <div id="payment-step-pending" class="payment-content" style="display: none;">
+        <div class="pending-panel">
+          <div class="pending-icon material-symbols-outlined">construction</div>
+          <h2 class="pending-title">Integração de pagamento em desenvolvimento</h2>
+          <p class="pending-text">
+            O meio selecionado — <strong id="pending-method">—</strong> — depende da
+            integração com a API bancária, prevista para a próxima etapa do projeto.
+            Nesta versão nenhum pagamento é processado.
+          </p>
+
+          <div class="pending-scope">
+            <div class="pending-scope-title">Já implementado nesta versão</div>
+            <ul>
+              <li>Pix real via Mercado Pago (volte e escolha essa opção)</li>
+              <li>Controle Dinâmico de Demanda com escrita Modbus no carregador</li>
+              <li>Tarifação dinâmica pelas três variáveis do Smart Pricing</li>
+              <li>Tradução Modbus RS-485 → OCPP 1.6J</li>
+              <li>Simulação física da recarga com múltiplas sessões simultâneas</li>
+            </ul>
+          </div>
+
+          <div class="pending-summary">
+            <span>Valor estimado da recarga</span>
+            <strong id="pending-amount">—</strong>
+          </div>
+
+          <button class="btn btn-primary btn-large" style="width:100%" id="btn-skip-payment">
+            Prosseguir para a recarga (demonstração)
+          </button>
+          <button class="btn btn-outline" style="width:100%" id="btn-back-method">
+            Escolher outro meio
+          </button>
+        </div>
+      </div>
+
+      <!-- Sub-tela: Pix real via Mercado Pago.
+           Só o Pix foi integrado de verdade (o cartão continua declarado como
+           pendente) — a cobrança é criada no servidor local (server/), nunca
+           com o token exposto no navegador. Se o servidor não estiver no ar
+           ou sem token configurado, cai de volta na tela de pendência em vez
+           de travar ou fingir sucesso. -->
+      <div id="payment-step-pix" class="payment-content" style="display: none;">
+        <div class="pix-panel">
+          <div class="pix-panel-title">Pague com Pix</div>
+          <div class="pix-panel-sub">Aponte a câmera do seu banco para o QR Code</div>
+
+          <div id="pix-loading" class="pix-loading">
+            <div class="pix-spinner"></div>
+            <span>Gerando cobrança…</span>
+          </div>
+
+          <div id="pix-content" class="pix-content" style="display:none;">
+            <div class="pix-qr-box">
+              <img id="pix-qr-img" alt="QR Code Pix" />
+            </div>
+            <div class="pix-copia-cola">
+              <input type="text" id="pix-codigo" readonly />
+              <button class="btn btn-outline" id="btn-copiar-pix">Copiar</button>
+            </div>
+            <div class="pix-valor">
+              Valor: <strong id="pix-valor">—</strong>
+            </div>
+            <div class="pix-status" id="pix-status">Aguardando pagamento…</div>
+          </div>
+
+          <div id="pix-erro" class="pix-erro" style="display:none;">
+            <p id="pix-erro-texto">Não foi possível gerar a cobrança Pix.</p>
+          </div>
+
+          <button class="btn btn-outline" style="width:100%" id="btn-cancelar-pix">
+            Cancelar
+          </button>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <!-- Screen 4: Monitoring -->
+    <div id="screen-monitoring" class="screen">
+      <div class="app-header">
+        <div></div> <!-- spacer -->
+        <div class="header-title">Carregamento em Andamento</div>
+        <div class="step-indicator">
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot"></div>
+          <div class="step-dot active"></div>
+        </div>
+      </div>
+
+      <div class="monitoring-content">
+        <!-- Controle Dinâmico de Demanda: aparece quando o tótem limita a recarga -->
+        <div class="demand-banner" id="demand-banner">
+          <div class="demand-icon material-symbols-outlined" id="demand-icon">bolt</div>
+          <div class="demand-text">
+            <div class="demand-title" id="demand-title">Controle de Demanda ativo</div>
+            <div class="demand-detail" id="demand-detail"></div>
+          </div>
+          <div class="demand-delta" id="demand-delta"></div>
+        </div>
+
+        <div class="progress-ring-container">
+          <svg class="progress-ring">
+            <circle class="progress-ring-bg" cx="160" cy="160" r="140"></circle>
+            <circle class="progress-ring-fill" cx="160" cy="160" r="140"></circle>
+          </svg>
+          <div class="progress-content">
+            <div class="progress-percent" id="mon-percent">0%</div>
+            <div class="progress-power" id="mon-power">0.0 kW</div>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">Energia Fornecida</div>
+            <div class="stat-value text-primary" id="stat-energy">0.00 kWh</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Tempo Decorrido</div>
+            <div class="stat-value" id="stat-time">0m 0s</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Custo Atual</div>
+            <div class="stat-value text-warning" id="stat-cost">R$ 0,00</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Status</div>
+            <div class="stat-value text-success" id="stat-status">Carregando</div>
+          </div>
+        </div>
+
+        <div class="stats-grid compact">
+          <div class="stat-box">
+            <div class="stat-label">Corrente Autorizada</div>
+            <div class="stat-value" id="stat-current">— A</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Preço Agora</div>
+            <div class="stat-value text-primary" id="stat-price">R$ 0,00</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Meta de Carga</div>
+            <div class="stat-value" id="stat-target">80%</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Tempo Restante</div>
+            <div class="stat-value" id="stat-remaining">—</div>
+          </div>
+        </div>
+
+        <!-- Demanda do estabelecimento contra o limite contratado -->
+        <div class="site-strip">
+          <div class="site-strip-head">
+            <span class="site-strip-title">Demanda do estabelecimento</span>
+            <span class="site-strip-value" id="site-strip-value">—</span>
+          </div>
+          <div class="site-bar">
+            <div class="site-bar-track">
+              <div class="site-seg site-seg-building" id="seg-building" style="width:0%"></div>
+              <div class="site-seg site-seg-ev" id="seg-ev" style="width:0%"></div>
+            </div>
+            <div class="site-limit-mark" id="site-limit-mark" style="left:95%"></div>
+          </div>
+          <div class="site-legend">
+            <span><i class="site-seg-building"></i> Consumo do prédio</span>
+            <span><i class="site-seg-ev"></i> Recarga de veículos</span>
+            <span><i class="site-seg-solar"></i> <span id="site-solar-note">Solar 0,0 kW</span></span>
+          </div>
+        </div>
+
+        <button class="btn btn-danger btn-large" id="btn-end-charge">Encerrar Carregamento</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Session Summary Modal -->
+  <div class="modal-overlay" id="summary-modal">
+    <div class="card modal-content">
+      <div class="modal-header">
+        <div class="modal-icon material-symbols-outlined">check_circle</div>
+        <h2>Carregamento Concluído</h2>
+        <p class="text-secondary">Obrigado por usar o ChargeGrid Hub</p>
+      </div>
+      <div class="tariff-breakdown" style="margin-bottom: 24px;">
+        <div class="tariff-row">
+          <span class="label">Estação</span>
+          <strong class="value" id="modal-station">--</strong>
+        </div>
+        <div class="tariff-row">
+          <span class="label">Tempo</span>
+          <strong class="value" id="modal-time">--</strong>
+        </div>
+        <div class="tariff-row">
+          <span class="label">Energia medida</span>
+          <strong class="value" id="modal-energy">--</strong>
+        </div>
+        <div class="tariff-row">
+          <span class="label">Energia na bateria</span>
+          <strong class="value" id="modal-battery">--</strong>
+        </div>
+
+        <!-- Faixas de preço atravessadas durante a recarga -->
+        <div id="modal-segments"></div>
+
+        <div class="tariff-row kind-total">
+          <span class="label">Total pago</span>
+          <strong class="value" id="modal-cost">--</strong>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" style="width:100%" id="btn-new-charge">Novo Carregamento</button>
+        <button class="btn btn-outline" style="width:100%" id="btn-close-modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="data/mock-data.js"></script>
+  <script src="data/site-config.js"></script>
+  <script src="data/modbus-map.js"></script>
+
+  <!-- Tarifação (ANEEL): roda igual no navegador e no servidor (dual-mode),
+       porque depende só da hora real do dispositivo, não do motor. -->
+  <script src="js/sim/tariff.js"></script>
+
+  <!-- Cliente do motor de simulação: o motor em si (js/sim/{clock,site,
+       ev-physics,session,demand,smart-pricing,modbus,ocpp,engine}.js) agora
+       roda só no servidor (server/sim/), como uma única instância
+       compartilhada entre tótem e admin. Este arquivo conecta por WebSocket
+       e recebe o estado ao vivo. -->
+  <script src="js/sim-client.js"></script>
+
+  <!-- Ponte com o hardware real (ESP32 + relé) via MQTT.
+       Biblioteca empacotada localmente (js/vendor/) de propósito: um tótem
+       não deveria depender de uma CDN externa pra controlar um relé de
+       segurança — funciona mesmo sem acesso à internet geral, só precisa
+       alcançar o broker MQTT. Continua rodando aqui no navegador mesmo com
+       o motor no servidor: só a decisão de quando ligar/desligar migrou. -->
+  <script src="js/vendor/mqtt.min.js"></script>
+  <script src="js/sim/mqtt-bridge.js"></script>
+
+  <script src="js/pricing.js"></script>
+  <script src="js/stations.js"></script>
+  <script src="js/payment.js"></script>
+  <script src="js/pix-client.js"></script>
+  <script src="js/charging.js"></script>
+  <script src="js/demo-panel.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "chargegrid-pix-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend do ChargeGrid Hub — cobranças Pix reais via Mercado Pago e o motor de simulação (totem + admin conectados por WebSocket, com estado compartilhado).",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ws": "^8.21.3"
+  }
+}
