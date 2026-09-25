@@ -771,3 +771,27 @@
 @media (min-width: 900px) {
   .demo-panel { left: auto; right: var(--space-lg); width: 300px; }
 }
+.mqtt-control {
+  width: 100%;
+  min-width: 0;
+  padding: 16px;
+  margin: 12px 0;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 14px;
+  text-align: left;
+}
+.mqtt-control-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.mqtt-control-actions .btn { flex: 1; }
+#btn-retry-authorization[hidden] { display: none; }
+.mqtt-control-log {
+  height: 100px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #1e293b;
+  color: #86efac;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}

@@ -9,7 +9,7 @@
 import { WebSocketServer } from 'ws';
 import { SimClock, SiteModel } from './sim/engine.js';
 
-export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus) {
+export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, authorization) {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
   // Conexão do totem dona da sessão do motorista — só ela recebe comandos de
@@ -39,6 +39,9 @@ export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus) {
   });
 
   wss.on('connection', ws => {
+    const notifyAuthorization = data => {
+      if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'authorization', data }));
+    };
     ws.send(JSON.stringify({ type: 'snapshot', data: SimEngine.snapshot() }));
 
     ws.on('message', raw => {
@@ -48,16 +51,46 @@ export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus) {
       } catch {
         return;
       }
+      if (!msg || typeof msg !== 'object') return;
       const p = msg.payload || {};
 
       switch (msg.type) {
         case 'start-session':
-          SimEngine.startUserSession(p);
-          userSessionOwner = ws;
+          if (!SiteModel.getEvseByStation(p.stationId) || !p.vehicle || !Number.isFinite(p.vehicle.batteryCapacity)) {
+            notifyAuthorization({ status: 'error', message: 'Selecione uma estação e um veículo válidos.' });
+            break;
+          }
+          authorization.request(ws, p.stationId, notifyAuthorization, () => {
+            const evse = SiteModel.getEvseByStation(p.stationId);
+            if (ws.readyState !== ws.OPEN || evse.status !== 'Available' || SimEngine.userSession) throw new Error('Estação indisponível');
+            // O dono é definido antes de o motor emitir LIGAR, após autorização MQTT.
+            userSessionOwner = ws;
+            SimEngine.startUserSession(p);
+            // Inicializa a tela antes do próximo tick, inclusive se DESLIGAR vier logo em seguida.
+            ws.send(JSON.stringify({ type: 'snapshot', data: SimEngine.snapshot() }));
+          });
+          break;
+        case 'cancel-authorization':
+          authorization.cancel(ws);
+          // Cobre a corrida entre o clique em cancelar e a resposta MQTT.
+          if (userSessionOwner === ws) {
+            SimEngine.stopUserSession('Local');
+            userSessionOwner = null;
+          }
           break;
         case 'stop-session':
+          authorization.cancel(ws);
+          if (userSessionOwner !== ws) break;
           SimEngine.stopUserSession(p.reason);
-          if (userSessionOwner === ws) userSessionOwner = null;
+          userSessionOwner = null;
+          break;
+        case 'mqtt-command':
+          authorization.receive(ws, p.command);
+          if (p.command === 'DESLIGAR' && userSessionOwner === ws) {
+            userSessionOwner = null;
+            SimEngine.stopUserSession('Remote');
+            notifyAuthorization({ status: 'stopped', message: 'Recarga encerrada por MQTT.' });
+          }
           break;
         case 'demo:set-time':
           SimClock.setTime(p.hour, p.minute);
@@ -89,7 +122,11 @@ export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus) {
     });
 
     ws.on('close', () => {
-      if (userSessionOwner === ws) userSessionOwner = null;
+      authorization.cancel(ws);
+      if (userSessionOwner === ws) {
+        SimEngine.stopUserSession('Other');
+        userSessionOwner = null;
+      }
     });
   });
 

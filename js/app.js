@@ -32,6 +32,14 @@ window.App = {
     this.bindScrollCue();
 
     window.SimClient.onSnapshot(snapshot => this.onSimTick(snapshot));
+    window.SimClient.onAuthorization(data => this.onAuthorization(data));
+    this.initMqttControls();
+
+    // Comandos automáticos usam outro tópico: suspender por demanda não
+    // pode voltar pelo tópico de autorização e encerrar a sessão do usuário.
+    window.SimClient.onRelay(command => {
+      window.MqttBridge.aplicarComandoRele(command);
+    });
 
     this.showScreen('welcome');
     this.updateWelcomeScreen();
@@ -143,6 +151,13 @@ window.App = {
       this.showPaymentStep('method');
     });
 
+    document.getElementById('btn-retry-authorization')?.addEventListener('click', () => this.startMonitoring());
+    document.getElementById('btn-cancel-authorization')?.addEventListener('click', () => {
+      this.cancelAuthorization();
+      this.showScreen('stations');
+      this.renderStations();
+    });
+
     document.getElementById('btn-cancelar-pix')?.addEventListener('click', () => {
       this.cancelarPix();
       this.showPaymentStep('method');
@@ -175,6 +190,8 @@ window.App = {
   },
 
   showScreen(screenId) {
+    if (this._awaitingAuthorization && screenId !== 'payment') this.cancelAuthorization();
+    if (this.currentScreen === 'payment' && screenId !== 'payment') this.cancelarPix();
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const tela = document.getElementById(`screen-${screenId}`);
     tela.classList.add('active');
@@ -452,7 +469,7 @@ window.App = {
   },
 
   showPaymentStep(step) {
-    ['method', 'pending', 'pix'].forEach(s => {
+    ['method', 'pending', 'pix', 'authorization'].forEach(s => {
       const el = document.getElementById(`payment-step-${s}`);
       if (el) el.style.display = s === step ? 'flex' : 'none';
     });
@@ -498,7 +515,7 @@ window.App = {
           if (status === 'approved') {
             statusEl.textContent = 'Pagamento aprovado!';
             statusEl.className = 'pix-status aprovado';
-            setTimeout(() => this.startMonitoring(), 1200);
+            this.startMonitoring();
             return false;
           }
           if (status === 'cancelled' || status === 'rejected') {
@@ -545,21 +562,109 @@ window.App = {
   },
 
   startMonitoring() {
-    this.showScreen('monitoring');
+    if (this._awaitingAuthorization) return;
     const station = window.StationManager.getSelectedStation();
-
-    window.StationManager.updateStationStatus(station.id, 'charging');
-
+    if (!station || !this.selectedVehicle) return;
+    this._awaitingAuthorization = true;
+    this._authorizationReady = false;
+    window.MqttBridge.ativar();
+    this.showPaymentStep('authorization');
+    document.getElementById('authorization-status').textContent = 'Solicitando autorização…';
+    document.getElementById('btn-retry-authorization').hidden = true;
     window.ChargingSimulator.onUpdate(data => this.updateMonitoringUI(data));
-    window.ChargingSimulator.startSession(
+    const sent = window.ChargingSimulator.startSession(
       station.id,
       this.selectedVehicle ? this.selectedVehicle.batteryCapacity : 60,
       {
         vehicle: this.selectedVehicle,
         startSoc: this.arrivalSoc,
-        targetSoc: this.targetSoc
+        targetSoc: this.targetSoc,
+        paymentMethod: this._pixPaymentId ? 'pix' : 'demo'
       }
     );
+
+    if (!sent) this.onAuthorization({ status: 'error', message: 'Servidor desconectado. Aguarde a conexão e tente novamente.' });
+    this.renderMqttControls();
+  },
+
+  cancelAuthorization() {
+    if (this._awaitingAuthorization) window.SimClient.send('cancel-authorization');
+    this._awaitingAuthorization = false;
+    this._authorizationReady = false;
+    this.renderMqttControls();
+  },
+
+  onAuthorization(data) {
+    if (data.status === 'stopped' && this.currentScreen === 'monitoring') {
+      window.MqttBridge.registrar('Recarga encerrada pelo comando DESLIGAR.');
+      this.showSummaryModal();
+      return;
+    }
+    if (!this._awaitingAuthorization) return;
+    if (data.status === 'approved') {
+      this._awaitingAuthorization = false;
+      this._authorizationReady = false;
+      this.openMonitoring();
+      this.renderMqttControls();
+      return;
+    }
+    document.getElementById('authorization-status').textContent = data.message || 'Aguardando autorização…';
+    this._authorizationReady = data.status === 'waiting';
+    if (data.status !== 'waiting') {
+      this._awaitingAuthorization = false;
+      document.getElementById('btn-retry-authorization').hidden = false;
+    }
+    this.renderMqttControls();
+  },
+
+  initMqttControls() {
+    document.querySelectorAll('[data-mqtt-command]').forEach(button => {
+      button.addEventListener('click', () => {
+        if (button.disabled) return;
+        if (button.dataset.mqttCommand === 'LIGAR') window.MqttBridge.autorizarCarga();
+        else window.MqttBridge.cortarCarga();
+      });
+    });
+    window.MqttBridge.onCommand(command => {
+      // Só o recebimento MQTT, nunca o clique, pede liberação ao servidor.
+      if ((this._awaitingAuthorization && this._authorizationReady) || this.currentScreen === 'monitoring') {
+        window.SimClient.send('mqtt-command', { command });
+      }
+    });
+    window.MqttBridge.onUpdate(state => {
+      if ((!state.ativo || !state.conectado) && this._awaitingAuthorization && this._authorizationReady) {
+        this.cancelAuthorization();
+        document.getElementById('authorization-status').textContent = 'Conexão MQTT indisponível. Reconecte e tente novamente.';
+        document.getElementById('btn-retry-authorization').hidden = false;
+      }
+      this.renderMqttControls();
+    });
+    window.MqttBridge.ativar();
+    this.renderMqttControls();
+  },
+
+  renderMqttControls() {
+    const state = window.MqttBridge.snapshot();
+    const ready = state.ativo && state.conectado;
+    document.querySelectorAll('[data-mqtt-status]').forEach(el => {
+      el.textContent = ready ? 'MQTT conectado' : 'MQTT desconectado';
+      el.classList.toggle('text-success', Boolean(ready));
+    });
+    document.querySelectorAll('[data-mqtt-command]').forEach(button => {
+      button.disabled = !ready || (button.dataset.mqttCommand === 'LIGAR'
+        ? !this._authorizationReady
+        : !(this._authorizationReady || (this.currentScreen === 'monitoring' && !this._summaryShown)));
+    });
+    document.querySelectorAll('[data-mqtt-log]').forEach(el => {
+      el.textContent = state.log.map(entry => `[${entry.time}] ${entry.message}`).join('\n') || 'Aguardando conexão MQTT…';
+      el.scrollTop = el.scrollHeight;
+    });
+  },
+
+  openMonitoring() {
+    this.showScreen('monitoring');
+    const station = window.StationManager.getSelectedStation();
+    window.StationManager.updateStationStatus(station.id, 'charging');
 
     if (window.SimClient.snapshot) {
       this.updateDemandBanner(window.SimClient.snapshot);
@@ -704,6 +809,7 @@ window.App = {
     // seria reaberto (e a sessão encerrada de novo) a cada atualização.
     if (this._summaryShown) return;
     this._summaryShown = true;
+    this.renderMqttControls();
 
     const data = window.ChargingSimulator.stopSession();
     const station = window.StationManager.getSelectedStation();
@@ -751,6 +857,7 @@ window.App = {
   },
 
   resetApp() {
+    this.cancelAuthorization();
     this.cancelarPix();
     window.StationManager.selectedStationId = null;
     this.selectedVehicle = null;

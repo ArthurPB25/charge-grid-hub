@@ -20,6 +20,7 @@
 window.MqttBridge = {
   url: 'wss://broker.emqx.io:8084/mqtt',
   topicoComando: 'meu_projeto/tomada/comando',
+  topicoRele: 'meu_projeto/tomada/rele',
   topicoStatus: 'meu_projeto/tomada/status',
 
   client: null,
@@ -28,6 +29,14 @@ window.MqttBridge = {
   ultimoStatusHardware: null, // o que o ESP32 realmente reportou por último
 
   _listeners: [],
+  _commandListeners: [],
+  log: [],
+
+  registrar(message) {
+    this.log.push({ time: new Date().toLocaleTimeString('pt-BR'), message });
+    if (this.log.length > 40) this.log.shift();
+    this._notificar();
+  },
 
   /** Liga a ponte: conecta ao broker e passa a espelhar o hardware real. */
   ativar() {
@@ -42,32 +51,41 @@ window.MqttBridge = {
       return;
     }
 
-    this.client = mqtt.connect(this.url, { connectTimeout: 8000, reconnectPeriod: 4000 });
+    this.client = mqtt.connect(this.url, { connectTimeout: 8000, reconnectPeriod: 4000, clean: true, queueQoSZero: false });
+    this.registrar('Conectando ao broker MQTT…');
 
     this.client.on('connect', () => {
-      this.conectado = true;
-      this.client.subscribe(this.topicoStatus);
-      this._notificar();
+      this.client.subscribe([this.topicoStatus, this.topicoComando], { qos: 0 }, (err, grants) => {
+        this.conectado = !err && this.client.connected && grants?.some(g => g.topic === this.topicoComando && g.qos !== 128);
+        this.registrar(this.conectado ? 'Conectado e aguardando comandos.' : 'Falha ao assinar o tópico de comandos.');
+      });
     });
 
     this.client.on('reconnect', () => {
       this.conectado = false;
-      this._notificar();
+      this.registrar('Tentando reconectar…');
     });
 
     this.client.on('close', () => {
       this.conectado = false;
-      this._notificar();
+      this.registrar('Conexão MQTT perdida.');
     });
 
-    this.client.on('message', (topic, payload) => {
+    this.client.on('message', (topic, payload, packet = {}) => {
       if (topic === this.topicoStatus) {
         this.ultimoStatusHardware = payload.toString();
         this._notificar();
+      } else if (topic === this.topicoComando && this.ativo && this.conectado) {
+        const command = payload.toString();
+        if (packet.retain || !['LIGAR', 'DESLIGAR'].includes(command)) return;
+        this.registrar(`Recebido: ${command}`);
+        for (const fn of this._commandListeners) fn(command);
       }
     });
 
     this.client.on('error', err => {
+      this.conectado = false;
+      this.registrar(`Erro MQTT: ${err.message}`);
       console.error('[MqttBridge] erro de conexão:', err.message);
     });
 
@@ -90,19 +108,33 @@ window.MqttBridge = {
     return this.ativo;
   },
 
-  /** Chamado pelo motor de simulação quando uma sessão real deveria energizar o relé. */
+  /** Publica a autorização manual; o recebimento no tópico é que libera a sessão. */
   autorizarCarga() {
     if (this.ativo) this._publicar('LIGAR');
   },
 
-  /** Chamado quando a sessão termina ou é suspensa pelo controle de demanda. */
+  /** Publica a ordem manual de cancelar/encerrar a recarga. */
   cortarCarga() {
     if (this.ativo) this._publicar('DESLIGAR');
   },
 
-  _publicar(comando) {
-    if (!this.client || !this.conectado) return;
-    this.client.publish(this.topicoComando, comando);
+  aplicarComandoRele(comando) {
+    if (this.ativo && ['LIGAR', 'DESLIGAR'].includes(comando)) this._publicar(comando, this.topicoRele);
+  },
+
+  _publicar(comando, topic = this.topicoComando) {
+    if (!this.client || !this.ativo || !this.conectado || !this.client.connected) {
+      this.registrar('Comando não enviado: MQTT desconectado.');
+      return false;
+    }
+    this.client.publish(topic, comando, { qos: 0, retain: false }, err => {
+      this.registrar(err ? `Falha ao publicar ${comando}: ${err.message}` : `Publicado: ${comando}`);
+    });
+    return true;
+  },
+
+  onCommand(fn) {
+    if (typeof fn === 'function') this._commandListeners.push(fn);
   },
 
   onUpdate(fn) {
@@ -120,7 +152,8 @@ window.MqttBridge = {
     return {
       ativo: this.ativo,
       conectado: this.conectado,
-      statusHardware: this.ultimoStatusHardware
+      statusHardware: this.ultimoStatusHardware,
+      log: this.log.slice()
     };
   }
 };

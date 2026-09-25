@@ -4,6 +4,12 @@ Este documento cobre as duas partes que só vocês podem terminar: a montagem
 física do ESP32 e a criação da conta do Mercado Pago. O código de ambos os
 lados já está pronto e testado (veja "O que já foi validado" no fim).
 
+**Atualização do fluxo MQTT:** o totem agora conecta automaticamente e aguarda
+`LIGAR` em `meu_projeto/tomada/comando` para iniciar a recarga. `DESLIGAR` encerra
+a sessão. O firmware também assina `meu_projeto/tomada/rele` para comandos
+automáticos de demanda. Veja [MQTT-AUTORIZACAO.md](MQTT-AUTORIZACAO.md) para o
+procedimento atual; as validações históricas abaixo não validam este novo fluxo.
+
 ## 1. Testar o firmware no Wokwi antes de montar de verdade
 
 O arquivo `esp32/chargegrid-rele.ino` já está pronto para o

@@ -17,14 +17,18 @@ window.SimClient = {
   _snapshotListeners: [],
   _protocolListeners: [],
   _relayListeners: [],
+  _authorizationListeners: [],
+  _connectionListeners: [],
+  connected: false,
   _reconnectDelay: 1000,
 
   connect() {
-    const url = `ws://${window.location.hostname}:3001/ws`;
+    const url = window.ChargeGridConfig.wsUrl;
     this.ws = new WebSocket(url);
 
     this.ws.addEventListener('open', () => {
       this._reconnectDelay = 1000;
+      this._connectionChanged(true);
     });
     this.ws.addEventListener('message', e => {
       let msg;
@@ -35,7 +39,11 @@ window.SimClient = {
       }
       this._onMessage(msg);
     });
-    this.ws.addEventListener('close', () => this._scheduleReconnect());
+    this.ws.addEventListener('close', () => {
+      this._connectionChanged(false);
+      for (const fn of this._authorizationListeners) fn({ status: 'error', message: 'Conexão com o servidor perdida. Tente novamente após reconectar.' });
+      this._scheduleReconnect();
+    });
     this.ws.addEventListener('error', () => {});
 
     return this;
@@ -54,6 +62,8 @@ window.SimClient = {
       for (const fn of this._protocolListeners) fn(msg);
     } else if (msg.type === 'relay') {
       for (const fn of this._relayListeners) fn(msg.command);
+    } else if (msg.type === 'authorization') {
+      for (const fn of this._authorizationListeners) fn(msg.data);
     }
   },
 
@@ -71,11 +81,26 @@ window.SimClient = {
     this._relayListeners.push(fn);
   },
 
+  onAuthorization(fn) {
+    this._authorizationListeners.push(fn);
+  },
+
+  onConnection(fn) {
+    this._connectionListeners.push(fn);
+    fn(this.connected);
+  },
+
+  _connectionChanged(connected) {
+    this.connected = connected;
+    for (const fn of this._connectionListeners) fn(connected);
+  },
+
   send(type, payload) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.warn('[SimClient] WebSocket não conectado, comando descartado:', type);
-      return;
+      return false;
     }
     this.ws.send(JSON.stringify(payload ? { type, payload } : { type }));
+    return true;
   }
 };

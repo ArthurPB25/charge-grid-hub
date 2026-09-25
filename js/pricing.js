@@ -33,7 +33,7 @@ window.PricingEngine = {
    */
   async calculateEstimate(batteryLevel, batteryCapacity, options) {
     const opts = options || {};
-    const resposta = await fetch(`http://${window.location.hostname}:3001/api/estimate`, {
+    const resposta = await fetch(`${window.ChargeGridConfig.apiOrigin}/api/estimate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

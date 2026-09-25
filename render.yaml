@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: chargegrid-hub
+    runtime: node
+    plan: free
+    buildCommand: npm ci --prefix server
+    startCommand: npm start --prefix server
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: MP_SANDBOX
+        value: "true"

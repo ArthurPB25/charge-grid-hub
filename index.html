@@ -243,6 +243,26 @@
         </div>
       </div>
 
+      <div id="payment-step-authorization" class="payment-content" style="display:none;">
+        <div class="pending-panel">
+          <div class="pending-icon material-symbols-outlined">ev_station</div>
+          <h2 class="pending-title">Autorização da recarga</h2>
+          <p class="pending-text">Envie LIGAR pelo painel abaixo ou pelo seu controle MQTT para liberar a recarga.</p>
+          <p id="authorization-status" class="pending-text" role="status" aria-live="polite">Aguardando autorização…</p>
+          <div class="mqtt-control">
+            <strong data-mqtt-status role="status">MQTT desconectado</strong>
+            <div class="mqtt-control-actions">
+              <button class="btn btn-primary" data-mqtt-command="LIGAR" disabled>LIGAR · Autorizar</button>
+              <button class="btn btn-outline" data-mqtt-command="DESLIGAR" disabled>DESLIGAR</button>
+            </div>
+            <pre data-mqtt-log class="mqtt-control-log" aria-label="Log de comandos MQTT"></pre>
+          </div>
+          <button id="btn-retry-authorization" class="btn btn-primary" style="width:100%" hidden>Tentar autorização novamente</button>
+          <button id="btn-cancel-authorization" class="btn btn-outline" style="width:100%">Cancelar solicitação</button>
+          <p class="pending-text">Cancelar a solicitação não estorna um Pix já aprovado.</p>
+        </div>
+      </div>
+
       <!-- Sub-tela: Pix real via Mercado Pago.
            Só o Pix foi integrado de verdade (o cartão continua declarado como
            pendente) — a cobrança é criada no servidor local (server/), nunca
@@ -300,6 +320,13 @@
       </div>
 
       <div class="monitoring-content">
+        <div class="mqtt-control">
+          <strong data-mqtt-status role="status">MQTT desconectado</strong>
+          <div class="mqtt-control-actions">
+            <button class="btn btn-outline" data-mqtt-command="DESLIGAR" disabled>DESLIGAR · Encerrar recarga</button>
+          </div>
+          <pre data-mqtt-log class="mqtt-control-log" aria-label="Log de comandos MQTT"></pre>
+        </div>
         <!-- Controle Dinâmico de Demanda: aparece quando o tótem limita a recarga -->
         <div class="demand-banner" id="demand-banner">
           <div class="demand-icon material-symbols-outlined" id="demand-icon">bolt</div>
@@ -439,6 +466,7 @@
        roda só no servidor (server/sim/), como uma única instância
        compartilhada entre tótem e admin. Este arquivo conecta por WebSocket
        e recebe o estado ao vivo. -->
+  <script src="js/config.js"></script>
   <script src="js/sim-client.js"></script>
 
   <!-- Ponte com o hardware real (ESP32 + relé) via MQTT.

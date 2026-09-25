@@ -16,7 +16,7 @@
  * computador que roda o servidor do Pix.
  */
 window.PixClient = {
-  baseUrl: `http://${window.location.hostname}:3001`,
+  baseUrl: window.ChargeGridConfig.apiOrigin,
 
   async criarCobranca({ valor, descricao, email }) {
     let resposta;

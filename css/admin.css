@@ -533,3 +533,4 @@ body {
   .sidebar-footer { display: block; }
   .dashboard-row { grid-template-columns: 2fr 1fr; }
 }
+#admin-connection-status[hidden] { display: none; }

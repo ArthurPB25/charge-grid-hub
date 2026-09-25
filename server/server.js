@@ -17,10 +17,22 @@ import express from 'express';
 import cors from 'cors';
 import SimEngine, { OcppClient, ModbusBus } from './sim/engine.js';
 import { attachWebSocket } from './ws.js';
+import { MqttAuthorization } from './mqtt-authorization.js';
+import { TotemHistory } from './totem-history.js';
+import { readSemsImport } from './sems-import.js';
+import { fileURLToPath } from 'node:url';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Publish only browser assets: never expose .env, storage or backend sources.
+app.get('/healthz', (req, res) => res.json({ ok: true }));
+for (const folder of ['css', 'js', 'data']) {
+  app.use('/' + folder, express.static(fileURLToPath(new URL('../' + folder + '/', import.meta.url)), { dotfiles: 'deny', index: false }));
+}
+app.get(['/', '/index.html'], (req, res) => res.sendFile(fileURLToPath(new URL('../index.html', import.meta.url))));
+app.get('/admin.html', (req, res) => res.sendFile(fileURLToPath(new URL('../admin.html', import.meta.url))));
 
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
 // A API antiga (/v1/payments) rejeita as credenciais desta conta com
@@ -161,7 +173,9 @@ app.post('/api/estimate', (req, res) => {
 
 // Única inicialização do motor no processo inteiro — nada de boot por
 // conexão: totem e admin só se conectam a essa instância já rodando.
-SimEngine.boot({ ambient: 2 });
+SimEngine.totemHistory = new TotemHistory(process.env.TOTEM_HISTORY_FILE || fileURLToPath(new URL('./storage/totem-sessions.json', import.meta.url)));
+SimEngine.semsImport = readSemsImport(process.env.SEMS_IMPORT_FILE || fileURLToPath(new URL('./storage/sems-import.json', import.meta.url)));
+SimEngine.boot({ ambient: 0 });
 
 const httpServer = app.listen(PORT, () => {
   console.log(`Servidor do ChargeGrid Hub rodando em http://localhost:${PORT}`);
@@ -170,5 +184,6 @@ const httpServer = app.listen(PORT, () => {
     : 'ATENÇÃO: MP_ACCESS_TOKEN não configurado — veja server/.env.example.');
 });
 
-attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus);
+const authorization = new MqttAuthorization();
+attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, authorization);
 console.log(`Motor de simulação ativo — WebSocket em ws://localhost:${PORT}/ws`);

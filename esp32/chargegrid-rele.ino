@@ -40,6 +40,7 @@ const int mqtt_port = 1883;
 
 // Tópicos MQTT
 const char* topico_comando = "meu_projeto/tomada/comando"; // site -> ESP32
+const char* topico_rele = "meu_projeto/tomada/rele"; // controle automático de demanda
 const char* topico_status  = "meu_projeto/tomada/status";  // ESP32 -> site
 
 // Pinos
@@ -98,6 +99,7 @@ void reconnect() {
     if (client.connect(clientId.c_str())) {
       Serial.println("Conectado ao Broker MQTT!");
       client.subscribe(topico_comando);
+      client.subscribe(topico_rele);
     } else {
       Serial.print("Falhou, rc=");
       Serial.print(client.state());

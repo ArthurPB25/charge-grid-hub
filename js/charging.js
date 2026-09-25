@@ -33,19 +33,20 @@ window.ChargingSimulator = {
 
     const vehicle = opts.vehicle || this._resolveVehicle(batteryCapacity);
 
-    window.SimClient.send('start-session', {
+    const sent = window.SimClient.send('start-session', {
       stationId: stationId,
       vehicle: vehicle,
       targetSoc: opts.targetSoc,
-      startSoc: opts.startSoc
+      startSoc: opts.startSoc,
+      paymentMethod: opts.paymentMethod
     });
 
     if (!this._bound) {
       window.SimClient.onSnapshot(snapshot => this._sync(snapshot));
       this._bound = true;
     }
-    // Não sincroniza na hora: o servidor ainda não processou o comando.
-    // O próximo snapshot (até 250ms) já vem com a sessão criada.
+    // A sessão só aparecerá nos snapshots depois da autorização MQTT.
+    return sent;
   },
 
   /** Quando a tela não informa o veículo, escolhe o de capacidade mais próxima. */

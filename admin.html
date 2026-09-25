@@ -40,7 +40,7 @@
         </button>
         <button class="nav-item" data-section="energy">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polyline></svg>
-          Energia
+          GoodWe / SEMS+
         </button>
         <button class="nav-item" data-section="pricing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
@@ -94,6 +94,7 @@
   <!-- O motor de simulação em si agora roda só no servidor (server/sim/);
        este arquivo conecta por WebSocket e recebe o estado ao vivo — o
        mesmo estado que o tótem vê, daí uma sessão iniciada lá aparecer aqui. -->
+  <script src="js/config.js"></script>
   <script src="js/sim-client.js"></script>
 
   <!-- Ponte com o hardware real (ESP32 + relé) via MQTT — biblioteca local,

@@ -6,6 +6,8 @@
  * cada tick, em vez de cada um rodar sua própria cópia do motor.
  */
 import { createRequire } from 'node:module';
+import { randomUUID } from 'node:crypto';
+import { TotemHistory } from '../totem-history.js';
 const require = createRequire(import.meta.url);
 const MockData = require('../../data/mock-data.js');
 const ModbusRegisters = require('../../data/modbus-map.js');
@@ -23,6 +25,8 @@ import OcppClient from './ocpp.js';
 const SimEngine = {
   started: false,
   userSession: null,
+  totemHistory: new TotemHistory(),
+  semsImport: { status: 'not-configured', records: [] },
 
   _updateListeners: [],
   _relayListeners: [],
@@ -63,15 +67,12 @@ const SimEngine = {
     OcppClient.init();
     SmartPricing.init();
 
-    const manutencao = SiteModel.getEvse(4);
-    if (manutencao) manutencao.status = 'Unavailable';
-
     this._wireProtocol();
     for (const evse of SiteModel.evses) {
       OcppClient.bootNotification(evse);
     }
 
-    this.seedAmbientSessions(opts.ambient == null ? 2 : opts.ambient);
+    this.seedAmbientSessions(opts.ambient == null ? 0 : opts.ambient);
 
     SimClock.onTick((dt, date, meta) => this._tick(dt, date, meta));
     SimClock.start();
@@ -157,6 +158,7 @@ const SimEngine = {
     // aparecia disponível no tótem.
     if (this.userSession) {
       if (this.userSession.status !== 'finished') this.userSession.finish();
+      this._recordFinished(this.userSession);
       OcppClient.stopTransaction(this.userSession, 'Local');
       SiteModel.removeSession(this.userSession);
       this.userSession = null;
@@ -168,6 +170,9 @@ const SimEngine = {
       targetSoc: config.targetSoc != null ? config.targetSoc : 0.8,
       startSoc: config.startSoc
     });
+    session.id = `TOT-${randomUUID()}`;
+    session.actualStartedAt = new Date().toISOString();
+    session.paymentMethod = config.paymentMethod === 'pix' ? 'pix' : 'demo';
 
     SiteModel.addSession(session);
     this.userSession = session;
@@ -185,6 +190,7 @@ const SimEngine = {
     const session = this.userSession;
     if (!session) return null;
     if (session.status !== 'finished') session.finish();
+    this._recordFinished(session);
     OcppClient.stopTransaction(session, reason || 'Local');
     SiteModel.removeSession(session);
     this.userSession = null;
@@ -208,8 +214,13 @@ const SimEngine = {
     const sessao = SiteModel.sessions.find(s => s.evseId === evse.id && s.status !== 'finished');
     if (sessao) {
       sessao.finish();
+      this._recordFinished(sessao);
       OcppClient.stopTransaction(sessao, 'Other');
       SiteModel.removeSession(sessao);
+      if (sessao === this.userSession) {
+        this.userSession = null;
+        this._emitRelay('DESLIGAR');
+      }
     }
     evse.status = 'Unavailable';
     OcppClient.statusNotification(evse, 'Unavailable');
@@ -236,6 +247,19 @@ const SimEngine = {
 
   onUpdate(fn) {
     if (typeof fn === 'function') this._updateListeners.push(fn);
+  },
+
+  _recordFinished(session) {
+    if (session._recorded) return;
+    session._recorded = true;
+    session.actualFinishedAt = new Date().toISOString();
+    this.today.sessions += 1;
+    this.today.energyKWh += session.energyGridKWh;
+    this.today.revenue += session.cost;
+    const record = this._serializeSession(session);
+    this.sessionHistory.push(record);
+    if (this.sessionHistory.length > 200) this.sessionHistory.shift();
+    this.totemHistory.add(record);
   },
 
   /** Chave de dia calendário (não UTC) a partir da data simulada, ex: "2026-08-25". */
@@ -271,11 +295,7 @@ const SimEngine = {
 
       if (session.status === 'finished' && before !== 'finished') {
         OcppClient.stopTransaction(session, 'EVDisconnected');
-        this.today.sessions += 1;
-        this.today.energyKWh += session.energyGridKWh;
-        this.today.revenue += session.cost;
-        this.sessionHistory.push(this._serializeSession(session));
-        if (this.sessionHistory.length > 200) this.sessionHistory.shift();
+        this._recordFinished(session);
         if (session.ambient) SiteModel.removeSession(session);
       }
     }
@@ -319,6 +339,9 @@ const SimEngine = {
       evse: session.evse,
       vehicle: session.vehicle,
       ambient: session.ambient,
+      actualStartedAt: session.actualStartedAt,
+      actualFinishedAt: session.actualFinishedAt,
+      paymentMethod: session.paymentMethod || 'demo',
       socStart: session.socStart,
       soc: session.soc,
       socTarget: session.socTarget,
@@ -342,6 +365,7 @@ const SimEngine = {
 
   snapshot() {
     return {
+      operations: { ...this.totemHistory.snapshot(), sems: this.semsImport },
       time: SimClock.formatTime(),
       date: SimClock.formatDate(),
       clock: {

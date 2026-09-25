@@ -4,6 +4,15 @@ Tótem de recarga para eletropostos comerciais, feito sobre o carregador residen
 
 Projeto do desafio **1CC EV Challenge — GoodWe + FIAP 2026**.
 
+A recarga do totem agora aguarda o comando **LIGAR recebido por MQTT** no navegador,
+após o pagamento ou a escolha do modo de demonstração. Veja o fluxo, as mensagens
+e a configuração do ESP32 em [MQTT-AUTORIZACAO.md](MQTT-AUTORIZACAO.md).
+
+O admin registra as operações do totem e possui uma aba **GoodWe / SEMS+** para
+dados importados do portal. A importação atual não se atualiza automaticamente;
+energia e custo do simulador são identificados como estimativas. Consulte
+[DADOS-ADMIN.md](DADOS-ADMIN.md) para fontes, persistência e integração pendente.
+
 ## Funcionalidades
 
 ### Tótem (experiência do motorista)
