@@ -96,3 +96,7 @@ Os dois se conectam ao mesmo motor de simulação no backend — abra as duas te
 | Leandro Cavaccini Brito | 570556 |
 | Lucas Dorice Dos Santos | 568692 |
 | Vinicius de Oliveira Coppola | 571699 |
+
+## Hospedagem
+
+O site e o backend podem rodar juntos no Render. Veja [HOSPEDAGEM.md](HOSPEDAGEM.md) e `render.yaml`.

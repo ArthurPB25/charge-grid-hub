@@ -9,8 +9,7 @@
  *    (/ws) e recebem o mesmo estado ao vivo, em vez de cada um rodar sua
  *    própria simulação isolada como acontecia antes.
  *
- * O site estático (js/, css/, index.html) continua servido à parte pelo
- * servidor Python — este processo só responde pelas rotas HTTP e pelo /ws.
+ * Frontend, API e WebSocket compartilham a mesma porta para hospedagem.
  */
 import 'dotenv/config';
 import express from 'express';
