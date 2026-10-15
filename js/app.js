@@ -32,6 +32,15 @@ window.App = {
     this.bindScrollCue();
 
     window.SimClient.onSnapshot(snapshot => this.onSimTick(snapshot));
+    window.ChargingSimulator.onUpdate(data => {
+      if (this.currentScreen === 'monitoring') this.updateMonitoringUI(data);
+    });
+    window.ChargingSimulator.bind();
+    window.SimClient.onConnection(() => {
+      if (this.currentScreen === 'welcome') this.updateWelcomeScreen();
+      if (this.currentScreen === 'stations') this.renderStations();
+      if (this.currentScreen === 'monitoring') this.renderSessionEndControls();
+    });
     window.SimClient.onAuthorization(data => this.onAuthorization(data));
     this.initMqttControls();
 
@@ -59,7 +68,7 @@ window.App = {
   onSimTick(snapshot) {
     this.updateSimClock();
     if (this.currentScreen === 'welcome') {
-      this.updateWelcomeTariff();
+      this.updateWelcomeScreen();
       return;
     }
     // Uma estação que o admin coloca em manutenção enquanto o motorista está
@@ -71,10 +80,15 @@ window.App = {
       if (this.stationsAvailabilitySignature() !== this._lastStationsSignature) {
         this.renderStations();
       }
+      this.updateStationSessions(snapshot);
       this.updateStationTariff();
       return;
     }
     if (this.currentScreen !== 'monitoring') return;
+    if (!window.ChargingSimulator.getSnapshotSession(snapshot) && !this._summaryShown) {
+      this.returnToStations('Esta sessão não está mais disponível. Confira o histórico no painel administrativo.');
+      return;
+    }
     this.updateDemandBanner(snapshot);
     this.updateSiteStrip(snapshot);
   },
@@ -82,9 +96,7 @@ window.App = {
   bindEvents() {
     // Welcome
     document.getElementById('btn-start').addEventListener('click', () => {
-      this.showScreen('stations');
-      this.renderStations();
-      this.updateStationTariff();
+      this.returnToStations();
     });
 
     // Back buttons
@@ -94,7 +106,8 @@ window.App = {
         if (target === 'stations') {
           window.PaymentController.cancelPayment();
         }
-        this.showScreen(target);
+        if (target === 'stations') this.returnToStations();
+        else this.showScreen(target);
       });
     });
 
@@ -128,13 +141,14 @@ window.App = {
         e.currentTarget.classList.add('selected');
         window.PaymentController.selectMethod(e.currentTarget.dataset.method);
         const btn = document.getElementById('btn-confirm-method');
-        if (btn) btn.disabled = false;
+        if (btn) btn.disabled = !this._paymentReady;
       });
     });
 
     // Pix segue o fluxo real (Mercado Pago); débito/crédito continuam
     // declarados como pendentes — não sabemos ainda como aceitar maquininha.
     document.getElementById('btn-confirm-method')?.addEventListener('click', () => {
+      if (!this._paymentReady || !window.PaymentController.orderData?.estimate) return;
       if (window.PaymentController.selectedMethod === 'pix') {
         this.startRealPix();
       } else {
@@ -177,21 +191,28 @@ window.App = {
     document.getElementById('btn-end-charge').addEventListener('click', () => {
       this.showSummaryModal();
     });
+    document.getElementById('btn-stop-charge').addEventListener('click', () => {
+      this.showSummaryModal();
+    });
+    document.getElementById('btn-back-stations').addEventListener('click', () => this.returnToStations());
 
     // Modal close
     document.getElementById('btn-new-charge').addEventListener('click', () => {
       this.hideModal();
-      this.resetApp();
+      this.returnToStations();
     });
     document.getElementById('btn-close-modal').addEventListener('click', () => {
       this.hideModal();
-      this.resetApp();
+      this.returnToStations();
     });
   },
 
   showScreen(screenId) {
     if (this._awaitingAuthorization && screenId !== 'payment') this.cancelAuthorization();
-    if (this.currentScreen === 'payment' && screenId !== 'payment') this.cancelarPix();
+    if (this.currentScreen === 'payment' && screenId !== 'payment') {
+      this.cancelarPix();
+      this._paymentRequest = (this._paymentRequest || 0) + 1;
+    }
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     const tela = document.getElementById(`screen-${screenId}`);
     tela.classList.add('active');
@@ -228,9 +249,11 @@ window.App = {
   },
 
   updateWelcomeScreen() {
-    const count = window.StationManager.getAvailableCount();
-    document.getElementById('welcome-count').textContent = count;
-    document.getElementById('welcome-label').textContent = count === 1 ? 'Estação Disponível' : 'Estações Disponíveis';
+    const ready = window.SimClient.connected && window.SimClient.snapshot;
+    const count = this._availableStations().length;
+    document.getElementById('welcome-count').textContent = ready ? count : '—';
+    document.getElementById('welcome-label').textContent = ready ? (count === 1 ? 'Estação Disponível' : 'Estações Disponíveis') : 'Sem conexão com o servidor';
+    document.getElementById('btn-start').disabled = !ready;
     this.updateWelcomeTariff();
   },
 
@@ -243,6 +266,11 @@ window.App = {
     const valor = document.getElementById('welcome-tariff-value');
     const posto = document.getElementById('welcome-tariff-posto');
     if (!valor || !posto) return;
+    if (!window.SimClient.connected || !window.SimClient.snapshot) {
+      valor.textContent = 'Indisponível';
+      posto.textContent = 'Aguardando conexão';
+      return;
+    }
 
     const preco = window.PricingEngine.getCurrentRate();
     valor.innerHTML = window.PricingEngine.formatCurrency(preco) + '<small>/kWh</small>';
@@ -264,56 +292,149 @@ window.App = {
     const snapshot = window.SimClient.snapshot;
     return window.StationManager.getStations().filter(s => {
       const evse = snapshot && snapshot.evses.find(e => e.stationId === s.id);
-      return evse ? evse.status === 'Available' : s.status === 'available';
+      return evse?.status === 'Available';
     });
   },
 
   stationsAvailabilitySignature() {
-    return this._availableStations().map(s => s.id).join(',');
+    const snapshot = window.SimClient.snapshot;
+    return window.StationManager.getStations().map(station => {
+      const evse = snapshot?.evses.find(e => e.stationId === station.id);
+      const session = snapshot?.sessions.find(s => s.evseId === evse?.id);
+      return `${station.id}:${evse?.status || 'offline'}:${session?.id || ''}`;
+    }).join(',');
+  },
+
+  escapeText(value) {
+    return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   },
 
   renderStations() {
     const grid = document.getElementById('stations-grid');
     grid.innerHTML = '';
 
-    const disponiveis = this._availableStations();
-    this._lastStationsSignature = disponiveis.map(s => s.id).join(',');
+    const snapshot = window.SimClient.snapshot;
+    this._lastStationsSignature = this.stationsAvailabilitySignature();
+    const selected = window.StationManager.selectedStationId;
+    if (!this._availableStations().some(s => s.id === selected)) window.StationManager.selectedStationId = null;
+    document.getElementById('btn-continue-payment').disabled = !window.StationManager.selectedStationId || !window.SimClient.connected;
 
-    if (!disponiveis.length) {
-      grid.innerHTML = `
-        <div class="stations-empty">
-          Nenhuma estação disponível no momento.<br>Tente novamente em alguns minutos.
-        </div>
-      `;
-      return;
-    }
-
-    disponiveis.forEach(station => {
-      const isSelected = window.StationManager.selectedStationId === station.id;
-
-      const card = document.createElement('div');
-      card.className = `card station-card ${isSelected ? 'selected' : ''}`;
+    window.StationManager.getStations().forEach(station => {
+      const evse = snapshot?.evses.find(e => e.stationId === station.id);
+      const session = snapshot?.sessions.find(s => s.evseId === evse?.id);
+      const available = evse?.status === 'Available' && !session;
+      const isSelected = available && window.StationManager.selectedStationId === station.id;
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.dataset.stationId = station.id;
+      card.disabled = !window.SimClient.connected || (!available && !session);
+      card.className = `card station-card ${session ? 'occupied' : ''} ${isSelected ? 'selected' : ''}`;
       card.innerHTML = `
         <div class="station-header">
           <div>
-            <div class="station-title">${station.name}</div>
-            <div class="station-location">${station.location}</div>
+            <div class="station-title">${this.escapeText(station.name)}</div>
+            <div class="station-location">${this.escapeText(station.location)}</div>
           </div>
+          <span class="station-status" data-station-status></span>
         </div>
         <div class="station-details">
           <div class="detail-item"><span class="material-symbols-outlined">ev_station</span> ${station.connector}</div>
           <div class="detail-item"><span class="material-symbols-outlined">bolt</span> ${station.maxPower} kW</div>
         </div>
+        ${session ? `
+          <div class="station-session">
+            <div class="station-vehicle">${this.escapeText(session.vehicle.brand)} ${this.escapeText(session.vehicle.model)}</div>
+            <div class="station-charge"><strong data-station-percent></strong><span data-station-power></span></div>
+            <div class="station-progress"><div data-station-progress></div></div>
+            <div class="station-action">Toque para ver os detalhes</div>
+            <small class="station-source">Bateria e recarga simuladas</small>
+          </div>` : `<div class="station-action">${available ? 'Selecionar para iniciar recarga' : 'Indisponível'}</div>`}
       `;
 
       card.addEventListener('click', () => {
+        if (session) {
+          this.openMonitoring(session.id);
+          return;
+        }
         window.StationManager.selectStation(station.id);
         this.renderStations();
         this.updateStationTariff();
-        document.getElementById('btn-continue-payment').disabled = false;
       });
       grid.appendChild(card);
     });
+    this.updateStationSessions(snapshot);
+  },
+
+  updateStationSessions(snapshot) {
+    this.updateEnergyDistribution(snapshot);
+    document.querySelectorAll('[data-station-id]').forEach(card => {
+      const evse = snapshot?.evses.find(e => e.stationId === Number(card.dataset.stationId));
+      const session = snapshot?.sessions.find(s => s.evseId === evse?.id);
+      const status = card.querySelector('[data-station-status]');
+      status.textContent = !window.SimClient.connected ? 'Sem conexão' : session
+        ? (session.status === 'finished' ? 'Concluída' : session.status === 'suspended' ? 'Pausada' : 'Carregando')
+        : evse?.status === 'Available' ? 'Disponível' : 'Indisponível';
+      card.disabled = !window.SimClient.connected || (!session && evse?.status !== 'Available');
+      if (!session) return;
+      const percent = Math.floor(session.soc * 100);
+      card.querySelector('[data-station-percent]').textContent = `${percent}%`;
+      card.querySelector('[data-station-power]').textContent = `${session.powerKW.toFixed(1)} kW`;
+      card.querySelector('[data-station-progress]').style.width = `${percent}%`;
+    });
+  },
+
+  updateEnergyDistribution(snapshot) {
+    const total = document.getElementById('energy-total');
+    const budget = document.getElementById('energy-budget');
+    const grid = document.getElementById('energy-stations');
+    if (!total || !budget || !grid) return;
+    const allocation = snapshot?.demand?.allocation;
+    if (!allocation || !window.SimClient.connected) {
+      total.textContent = 'Sem conexão';
+      budget.textContent = 'Aguardando conexão com o controlador…';
+      grid.replaceChildren();
+      return;
+    }
+    const kw = value => value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    total.textContent = `${kw(allocation.allocatedKW)} kW em recarga`;
+    budget.textContent = `${kw(snapshot.demand.availableKW)} kW disponíveis para recarga · Limite da rede: ${kw(snapshot.demand.limitKW)} kW`;
+    const labels = { idle: 'Sem recarga', paused: 'Aguardando potência', limited: 'Potência compartilhada', charging: 'Necessidade atendida' };
+    for (const station of allocation.stations) {
+      let row = grid.querySelector(`[data-energy-station="${station.stationId}"]`);
+      if (!row) {
+        row = document.createElement('div');
+        row.className = 'energy-station';
+        row.dataset.energyStation = station.stationId;
+        row.innerHTML = '<div><span></span><strong></strong></div><progress max="1"></progress><small></small>';
+        grid.appendChild(row);
+      }
+      row.querySelector('span').textContent = `Estação ${station.stationId}`;
+      row.querySelector('strong').textContent = `${kw(station.allocatedKW)} kW`;
+      const bar = row.querySelector('progress');
+      bar.value = station.allocatedKW / station.maxPowerKW;
+      bar.setAttribute('aria-label', `Potência da estação ${station.stationId}`);
+      row.querySelector('small').textContent = labels[station.status];
+      row.dataset.status = station.status;
+    }
+  },
+
+  returnToStations(message) {
+    this.cancelAuthorization();
+    this.cancelarPix();
+    window.PaymentController.cancelPayment();
+    window.StationManager.selectedStationId = null;
+    window.ChargingSimulator.sessionId = null;
+    this.selectedVehicle = null;
+    this.arrivalSoc = null;
+    this._arrivalSocPorVeiculo = {};
+    this._summaryShown = false;
+    const panel = document.getElementById('vehicle-info-panel');
+    if (panel) panel.style.display = 'none';
+    document.getElementById('stations-message').textContent = message || 'Escolha uma estação livre ou toque em uma recarga para acompanhar.';
+    this.showScreen('stations');
+    this.renderStations();
+    this.updateStationTariff();
+    this.renderMqttControls();
   },
 
   /**
@@ -335,10 +456,12 @@ window.App = {
     grid.innerHTML = '';
     
     window.MockData.vehicles.forEach(vehicle => {
-      const card = document.createElement('div');
+      const card = document.createElement('button');
+      card.type = 'button';
       card.className = `vehicle-card ${this.selectedVehicle?.id === vehicle.id ? 'selected' : ''}`;
+      card.setAttribute('aria-pressed', String(this.selectedVehicle?.id === vehicle.id));
       card.innerHTML = `
-        <div class="vehicle-icon material-symbols-outlined">${vehicle.image}</div>
+        <span class="vehicle-icon material-symbols-outlined">${vehicle.image}</span>
         <div class="vehicle-brand">${vehicle.brand}</div>
         <div class="vehicle-model">${vehicle.model}</div>
         <div class="vehicle-battery-info">${vehicle.batteryCapacity} kWh • ${vehicle.range} km</div>
@@ -385,6 +508,7 @@ window.App = {
   },
 
   async showVehicleInfo(vehicle) {
+    const request = this._estimateRequest = (this._estimateRequest || 0) + 1;
     const panel = document.getElementById('vehicle-info-panel');
     if (!panel) return;
     panel.style.display = 'block';
@@ -420,15 +544,19 @@ window.App = {
 
     // Estimativa pela curva real de carga, respeitando o limite de potência do
     // próprio veículo e as perdas de conversão — calculada no servidor.
-    const estimativa = await window.PricingEngine.calculateEstimate(
+    let estimativa;
+    try { estimativa = await window.PricingEngine.calculateEstimate(
       socInicial * 100,
       vehicle.batteryCapacity,
       { vehicle: vehicle, stationId: station ? station.id : 1, targetSoc: socAlvo }
-    );
+    ); } catch {
+      if (request === this._estimateRequest && this.selectedVehicle === vehicle) document.getElementById('calc-cost').textContent = 'Estimativa indisponível. Confira a conexão e selecione o veículo novamente.';
+      return;
+    }
 
     // O motorista pode ter trocado de veículo enquanto a estimativa deste
     // ainda estava a caminho — não pisa numa tela que já mudou de assunto.
-    if (this.selectedVehicle !== vehicle) return;
+    if (request !== this._estimateRequest || this.selectedVehicle !== vehicle) return;
 
     const posto = window.TariffEngine.getPosto();
     const autonomia = Math.round(vehicle.range * (socAlvo - socInicial));
@@ -442,6 +570,10 @@ window.App = {
   },
 
   async initPaymentScreen() {
+    const request = this._paymentRequest = (this._paymentRequest || 0) + 1;
+    this._paymentReady = false;
+    this._pixRequestKey = window.PaymentController.createRequestId();
+    window.PaymentController.cancelPayment();
     const station = window.StationManager.getSelectedStation();
 
     // Populate summary in method selection
@@ -461,11 +593,21 @@ window.App = {
     // Mesma estimativa mostrada na tela do veículo. A versão anterior fazia
     // `capacidade * 0,8`, que é 80% da bateria inteira e não a energia que
     // falta até os 80% — o valor saltava de uma tela para a outra.
-    const estimate = await window.StationManager.getEstimate();
-    window.PaymentController.startPayment({ station, estimate, vehicle: this.selectedVehicle });
-
-    document.getElementById('method-summary-cost').textContent =
-      estimate ? '~ ' + window.PricingEngine.formatCurrency(estimate.estimatedCost) : '--';
+    try {
+      const estimate = await window.StationManager.getEstimate();
+      if (request !== this._paymentRequest) return;
+      if (!estimate) throw new Error('Selecione a estação e o veículo novamente.');
+      const method = window.PaymentController.selectedMethod;
+      window.PaymentController.startPayment({ station, estimate, vehicle: this.selectedVehicle });
+      if (method) window.PaymentController.selectMethod(method);
+      this._paymentReady = true;
+      document.getElementById('btn-confirm-method').disabled = !method;
+      document.getElementById('method-summary-cost').textContent = '~ ' + window.PricingEngine.formatCurrency(estimate.estimatedCost);
+    } catch (error) {
+      if (request !== this._paymentRequest) return;
+      window.PaymentController.cancelPayment();
+      document.getElementById('method-summary-cost').textContent = 'Estimativa indisponível. Volte e tente novamente.';
+    }
   },
 
   showPaymentStep(step) {
@@ -481,6 +623,10 @@ window.App = {
    * pendência usada pelo cartão — nunca finge um QR Code.
    */
   async startRealPix() {
+    if (this._pixInFlight || !window.PaymentController.orderData?.estimate) return;
+    this._pixInFlight = true;
+    const generation = this._pixGeneration = (this._pixGeneration || 0) + 1;
+    this._pararPollingPix?.();
     this.showPaymentStep('pix');
     document.getElementById('pix-loading').style.display = 'flex';
     document.getElementById('pix-content').style.display = 'none';
@@ -489,22 +635,25 @@ window.App = {
     // Mesma estimativa já calculada e mostrada na tela de método de
     // pagamento — evita um novo round-trip ao servidor para o mesmo número.
     const estimativa = window.PaymentController.orderData ? window.PaymentController.orderData.estimate : null;
-    const valor = estimativa ? Number(estimativa.estimatedCost.toFixed(2)) : 0.5;
+    const valor = Number(estimativa.estimatedCost.toFixed(2));
     const station = window.StationManager.getSelectedStation();
 
     try {
       const cobranca = await window.PixClient.criarCobranca({
         valor: valor,
-        descricao: `ChargeGrid Hub — ${station ? station.name : 'recarga'}`
+        descricao: `ChargeGrid Hub — ${station ? station.name : 'recarga'}`,
+        requestId: this._pixRequestKey,
+        checkout: { stationId: station.id, vehicleId: this.selectedVehicle.id, startSoc: this.arrivalSoc, targetSoc: this.targetSoc }
       });
 
+      if (generation !== this._pixGeneration) return;
       this._pixPaymentId = cobranca.paymentId;
 
       document.getElementById('pix-loading').style.display = 'none';
       document.getElementById('pix-content').style.display = 'flex';
       document.getElementById('pix-qr-img').src = `data:image/png;base64,${cobranca.qrCodeBase64}`;
       document.getElementById('pix-codigo').value = cobranca.qrCode || '';
-      document.getElementById('pix-valor').textContent = window.PricingEngine.formatCurrency(valor);
+      document.getElementById('pix-valor').textContent = window.PricingEngine.formatCurrency(cobranca.amount ?? valor);
 
       const statusEl = document.getElementById('pix-status');
       statusEl.textContent = 'Aguardando pagamento…';
@@ -512,6 +661,7 @@ window.App = {
 
       this._pararPollingPix = window.PixClient.acompanharStatus(cobranca.paymentId, {
         onStatus: (status) => {
+          if (generation !== this._pixGeneration) return false;
           if (status === 'approved') {
             statusEl.textContent = 'Pagamento aprovado!';
             statusEl.className = 'pix-status aprovado';
@@ -525,17 +675,27 @@ window.App = {
           return true;
         },
         onErro: (err) => {
-          statusEl.textContent = 'Erro ao consultar pagamento: ' + err.message;
+          if (generation !== this._pixGeneration) return false;
+          if (err.status === 404 || err.status === 400) {
+            statusEl.textContent = 'Cobrança indisponível. Volte aos meios de pagamento; se já pagou, consulte o operador.';
+            return false;
+          }
+          statusEl.textContent = 'Consulta temporariamente indisponível. Tentando novamente…';
         }
       });
     } catch (err) {
+      if (generation !== this._pixGeneration) return;
       document.getElementById('pix-loading').style.display = 'none';
       document.getElementById('pix-erro').style.display = 'block';
       document.getElementById('pix-erro-texto').textContent = err.message;
+    } finally {
+      if (generation === this._pixGeneration) this._pixInFlight = false;
     }
   },
 
   cancelarPix() {
+    this._pixGeneration = (this._pixGeneration || 0) + 1;
+    this._pixInFlight = false;
     if (this._pararPollingPix) {
       this._pararPollingPix();
       this._pararPollingPix = null;
@@ -571,7 +731,6 @@ window.App = {
     this.showPaymentStep('authorization');
     document.getElementById('authorization-status').textContent = 'Solicitando autorização…';
     document.getElementById('btn-retry-authorization').hidden = true;
-    window.ChargingSimulator.onUpdate(data => this.updateMonitoringUI(data));
     const sent = window.ChargingSimulator.startSession(
       station.id,
       this.selectedVehicle ? this.selectedVehicle.batteryCapacity : 60,
@@ -579,7 +738,8 @@ window.App = {
         vehicle: this.selectedVehicle,
         startSoc: this.arrivalSoc,
         targetSoc: this.targetSoc,
-        paymentMethod: this._pixPaymentId ? 'pix' : 'demo'
+        paymentMethod: this._pixPaymentId ? 'pix' : 'demo',
+        paymentId: this._pixPaymentId
       }
     );
 
@@ -596,6 +756,7 @@ window.App = {
 
   onAuthorization(data) {
     if (data.status === 'stopped' && this.currentScreen === 'monitoring') {
+      if (data.sessionId !== window.ChargingSimulator.sessionId) return;
       window.MqttBridge.registrar('Recarga encerrada pelo comando DESLIGAR.');
       this.showSummaryModal();
       return;
@@ -604,7 +765,7 @@ window.App = {
     if (data.status === 'approved') {
       this._awaitingAuthorization = false;
       this._authorizationReady = false;
-      this.openMonitoring();
+      this.returnToStations('Recarga iniciada. Toque na sua estação para acompanhar ou escolha outra estação livre.');
       this.renderMqttControls();
       return;
     }
@@ -628,7 +789,7 @@ window.App = {
     window.MqttBridge.onCommand(command => {
       // Só o recebimento MQTT, nunca o clique, pede liberação ao servidor.
       if ((this._awaitingAuthorization && this._authorizationReady) || this.currentScreen === 'monitoring') {
-        window.SimClient.send('mqtt-command', { command });
+        window.SimClient.send('mqtt-command', { command, sessionId: window.ChargingSimulator.sessionId });
       }
     });
     window.MqttBridge.onUpdate(state => {
@@ -653,7 +814,7 @@ window.App = {
     document.querySelectorAll('[data-mqtt-command]').forEach(button => {
       button.disabled = !ready || (button.dataset.mqttCommand === 'LIGAR'
         ? !this._authorizationReady
-        : !(this._authorizationReady || (this.currentScreen === 'monitoring' && !this._summaryShown)));
+        : !(this._authorizationReady || (this.currentScreen === 'monitoring' && !this._summaryShown && window.ChargingSimulator.getSnapshotSession()?.evse.stationId === 1)));
     });
     document.querySelectorAll('[data-mqtt-log]').forEach(el => {
       el.textContent = state.log.map(entry => `[${entry.time}] ${entry.message}`).join('\n') || 'Aguardando conexão MQTT…';
@@ -661,10 +822,19 @@ window.App = {
     });
   },
 
-  openMonitoring() {
+  openMonitoring(sessionId) {
+    const session = window.SimClient.snapshot?.sessions.find(s => s.id === sessionId);
+    if (!session) return;
+    this._summaryShown = false;
+    window.StationManager.selectedStationId = session.evse.stationId;
+    this.selectedVehicle = session.vehicle;
     this.showScreen('monitoring');
-    const station = window.StationManager.getSelectedStation();
-    window.StationManager.updateStationStatus(station.id, 'charging');
+    document.getElementById('monitoring-title').textContent = `Estação ${String(session.evse.stationId).padStart(2, '0')}`;
+    document.getElementById('monitoring-vehicle').textContent = `${session.vehicle.brand} ${session.vehicle.model}`;
+    window.ChargingSimulator.selectSession(session.id);
+    this.renderMqttControls();
+
+    this.renderSessionEndControls();
 
     if (window.SimClient.snapshot) {
       this.updateDemandBanner(window.SimClient.snapshot);
@@ -694,10 +864,14 @@ window.App = {
 
     const status = document.getElementById('stat-status');
     if (status) {
-      const limitado = window.SimClient.snapshot && window.SimClient.snapshot.demand.state === 'LIMITANDO';
+      const stationId = window.ChargingSimulator.getSnapshotSession()?.evse.stationId;
+      const limitado = window.SimClient.snapshot?.demand.allocation?.stations.some(s => s.stationId === stationId && s.status === 'limited');
       if (data.status === 'suspended') {
         status.textContent = 'Suspenso';
         status.className = 'stat-value text-danger';
+      } else if (data.status === 'completed') {
+        status.textContent = 'Concluída';
+        status.className = 'stat-value text-success';
       } else if (limitado) {
         status.textContent = 'Limitado';
         status.className = 'stat-value text-warning';
@@ -713,7 +887,7 @@ window.App = {
       window.PricingEngine.formatCurrency(window.PricingEngine.getCurrentRate()) + '/kWh';
     document.getElementById('stat-target').textContent = Math.round((data.socTarget || 0.8) * 100) + '%';
 
-    const sessao = window.SimClient.snapshot ? window.SimClient.snapshot.userSession : null;
+    const sessao = window.ChargingSimulator.getSnapshotSession();
     document.getElementById('stat-remaining').textContent = sessao
       ? window.PricingEngine.formatDuration(sessao.minutesRemaining)
       : '—';
@@ -723,9 +897,18 @@ window.App = {
     const circumference = radius * 2 * Math.PI;
     circle.style.strokeDashoffset = circumference - (data.batteryLevel / 100) * circumference;
 
-    if (data.status === 'completed') {
-      this.showSummaryModal();
-    }
+    this.renderSessionEndControls();
+  },
+
+  renderSessionEndControls() {
+    const session = window.ChargingSimulator.getSnapshotSession();
+    const disabled = !window.SimClient.connected || !session || this._summaryShown;
+    const completed = session?.status === 'finished';
+    const bottom = document.getElementById('btn-end-charge');
+    const top = document.getElementById('btn-stop-charge');
+    bottom.disabled = top.disabled = Boolean(disabled);
+    bottom.textContent = completed ? 'Ver resumo e liberar estação' : 'Encerrar Carregamento';
+    top.textContent = completed ? 'Ver resumo e liberar estação' : 'DESLIGAR · Encerrar recarga';
   },
 
   /** Banner do Controle Dinâmico de Demanda. */
@@ -734,7 +917,7 @@ window.App = {
     if (!banner) return;
 
     const d = snapshot.demand;
-    const sessao = snapshot.userSession;
+    const sessao = window.ChargingSimulator.getSnapshotSession(snapshot);
     const evse = sessao ? sessao.evse : snapshot.evses.find(e => e.id === 1);
 
     banner.classList.remove('state-atencao', 'state-limitando', 'state-suspenso');
@@ -743,7 +926,7 @@ window.App = {
     // agregado do eletroposto: outra vaga pode estar suspensa enquanto esta
     // segue carregando normalmente.
     const suspensa = sessao && sessao.status === 'suspended';
-    const limitada = sessao && !suspensa && evse.commandedA < evse.iMax;
+    const limitada = sessao && !suspensa && d.allocation?.stations.some(s => s.stationId === evse.stationId && s.status === 'limited');
     const alerta = !suspensa && !limitada && (d.state === 'ATENCAO' || d.state === 'LIMITANDO');
 
     if (!suspensa && !limitada && !alerta) {
@@ -786,7 +969,7 @@ window.App = {
 
     const escala = window.SiteConfig.contractedDemandKW;
     const predio = snapshot.site.netKW;
-    const ev = snapshot.site.evKW;
+    const ev = Math.max(0, snapshot.site.evKW - snapshot.site.surplusKW);
 
     document.getElementById('seg-building').style.width = Math.min(100, (predio / escala) * 100) + '%';
     document.getElementById('seg-ev').style.width = Math.min(100, (ev / escala) * 100) + '%';
@@ -808,10 +991,14 @@ window.App = {
     // A tela de monitoramento dispara a cada tick; sem esta guarda o resumo
     // seria reaberto (e a sessão encerrada de novo) a cada atualização.
     if (this._summaryShown) return;
+    const data = window.ChargingSimulator.stopSession();
+    if (!data) return;
     this._summaryShown = true;
     this.renderMqttControls();
-
-    const data = window.ChargingSimulator.stopSession();
+    this.renderSessionEndControls();
+    // O relé físico pertence à estação 1. O corte direto também cobre a
+    // reconexão do navegador, que não é mais o dono original do WebSocket.
+    if (data.evse?.stationId === 1) window.MqttBridge.aplicarComandoRele('DESLIGAR');
     const station = window.StationManager.getSelectedStation();
     window.StationManager.updateStationStatus(station.id, 'available');
 

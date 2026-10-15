@@ -21,7 +21,7 @@ const SiteModel = {
     this.evses = SiteConfig.evses.map(e => Object.assign({}, e, {
       setpointKW: 0,
       currentA: 0,
-      commandedA: e.iMax,
+      commandedA: 0,
       status: 'Available'
     }));
     this.sessions = [];
@@ -68,7 +68,7 @@ const SiteModel = {
   },
 
   totalMeterKW() {
-    return this.netGridKW() + this.totalEvKW();
+    return Math.max(0, this.buildingLoadKW() + this.totalEvKW() - this.solarKW);
   },
 
   limitKW() {
@@ -76,7 +76,7 @@ const SiteModel = {
   },
 
   availableForEvKW() {
-    return Math.max(0, this.limitKW() - this.netGridKW());
+    return Math.max(0, this.limitKW() - this.buildingLoadKW() + this.solarKW);
   },
 
   solarFraction() {
@@ -119,7 +119,7 @@ const SiteModel = {
       evse.status = 'Available';
       evse.setpointKW = 0;
       evse.currentA = 0;
-      evse.commandedA = evse.iMax;
+      evse.commandedA = 0;
     }
   },
 

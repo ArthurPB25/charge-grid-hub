@@ -8,6 +8,7 @@
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { TotemHistory } from '../totem-history.js';
+import { finiteRange, validSessionConfig } from './validation.js';
 const require = createRequire(import.meta.url);
 const MockData = require('../../data/mock-data.js');
 const ModbusRegisters = require('../../data/modbus-map.js');
@@ -24,6 +25,8 @@ import OcppClient from './ocpp.js';
 
 const SimEngine = {
   started: false,
+  // Compatibilidade: última sessão iniciada. As sessões independentes
+  // são mantidas em SiteModel.sessions.
   userSession: null,
   totemHistory: new TotemHistory(),
   semsImport: { status: 'not-configured', records: [] },
@@ -83,7 +86,7 @@ const SimEngine = {
 
   /**
    * Liga o controle de demanda à camada de protocolo: toda decisão de limitar
-   * corrente vira uma escrita Modbus real e o perfil de carga OCPP
+   * corrente vira uma escrita Modbus simulada e o perfil de carga OCPP
    * correspondente. As transições de corrente 0<->não-zero da sessão do
    * totem viram um evento de relé (ver onRelay) em vez de chamar o
    * MqttBridge direto — esse bridge agora vive só no navegador do totem.
@@ -103,7 +106,8 @@ const SimEngine = {
         OcppClient.statusNotification(cmd.evse, 'Charging');
       }
 
-      if (cmd.session === this.userSession) {
+      // O relé legado representa somente a estação 1, não todas as sessões.
+      if (!cmd.session.ambient && cmd.evse.stationId === 1) {
         if (cmd.toA === 0) this._emitRelay('DESLIGAR');
         else if (cmd.fromA === 0) this._emitRelay('LIGAR');
       }
@@ -147,22 +151,9 @@ const SimEngine = {
   },
 
   startUserSession(config) {
+    if (!validSessionConfig(config)) return null;
     const evse = SiteModel.getEvseByStation(config.stationId);
-    if (!evse) return null;
-
-    // Se a sessão anterior do motorista ficou pendurada (ele saiu da tela —
-    // deu refresh, o tablet dormiu — sem passar por stopUserSession), ela
-    // nunca seria limpa sozinha: sessões do usuário que terminam não são
-    // removidas automaticamente, só as ambiente (ver _tick). Sem isso, o
-    // EVSE dela ficava "Charging" para sempre e nenhuma estação nova
-    // aparecia disponível no tótem.
-    if (this.userSession) {
-      if (this.userSession.status !== 'finished') this.userSession.finish();
-      this._recordFinished(this.userSession);
-      OcppClient.stopTransaction(this.userSession, 'Local');
-      SiteModel.removeSession(this.userSession);
-      this.userSession = null;
-    }
+    if (!evse || evse.status !== 'Available' || SiteModel.sessions.some(s => s.evseId === evse.id)) return null;
 
     const session = ChargeSession.create({
       evseId: evse.id,
@@ -181,21 +172,28 @@ const SimEngine = {
     OcppClient.authorize(tag, evse);
     OcppClient.startTransaction(session, tag);
 
-    this._emitRelay('LIGAR');
+    delete DemandController._lastCommand[evse.id];
+    this.rebalance();
 
     return session;
   },
 
-  stopUserSession(reason) {
-    const session = this.userSession;
-    if (!session) return null;
-    if (session.status !== 'finished') session.finish();
-    this._recordFinished(session);
-    OcppClient.stopTransaction(session, reason || 'Local');
-    SiteModel.removeSession(session);
-    this.userSession = null;
+  getUserSession(sessionId) {
+    return SiteModel.sessions.find(s => !s.ambient && s.id === sessionId) || null;
+  },
 
-    this._emitRelay('DESLIGAR');
+  stopUserSession(reason, sessionId) {
+    const session = sessionId ? this.getUserSession(sessionId) : this.userSession;
+    if (!session) return null;
+    if (session.status !== 'finished') {
+      session.finish();
+      this._recordFinished(session);
+      OcppClient.stopTransaction(session, reason || 'Local');
+      if (session.evse.stationId === 1) this._emitRelay('DESLIGAR');
+    }
+    SiteModel.removeSession(session);
+    if (this.userSession === session) this.userSession = null;
+    this.rebalance();
 
     return session;
   },
@@ -211,15 +209,14 @@ const SimEngine = {
       return;
     }
 
-    const sessao = SiteModel.sessions.find(s => s.evseId === evse.id && s.status !== 'finished');
+    const sessao = SiteModel.sessions.find(s => s.evseId === evse.id);
     if (sessao) {
-      sessao.finish();
-      this._recordFinished(sessao);
-      OcppClient.stopTransaction(sessao, 'Other');
-      SiteModel.removeSession(sessao);
-      if (sessao === this.userSession) {
-        this.userSession = null;
-        this._emitRelay('DESLIGAR');
+      if (!sessao.ambient) this.stopUserSession('Other', sessao.id);
+      else {
+        sessao.finish();
+        this._recordFinished(sessao);
+        OcppClient.stopTransaction(sessao, 'Other');
+        SiteModel.removeSession(sessao);
       }
     }
     evse.status = 'Unavailable';
@@ -229,11 +226,16 @@ const SimEngine = {
   /** Estimativa de custo/tempo antes de existir sessão (porta de js/pricing.js calculateEstimate). */
   estimate({ stationId, vehicleId, batteryLevel, targetSoc, capKW } = {}) {
     const vehicle = MockData.vehicles.find(v => v.id === vehicleId);
-    const evse = SiteModel.getEvseByStation(stationId) || SiteModel.evses[0];
+    const evse = SiteModel.getEvseByStation(stationId);
     if (!vehicle || !evse) return null;
+
+    if ((batteryLevel != null && !finiteRange(batteryLevel, 0, 100)) ||
+        (targetSoc != null && !finiteRange(targetSoc, 0, 1)) ||
+        (capKW != null && !finiteRange(capKW, .001, 1000))) return null;
 
     const socNow = (batteryLevel == null ? 20 : batteryLevel) / 100;
     const socTarget = targetSoc != null ? targetSoc : 0.8;
+    if (socTarget < socNow) return null;
     const rate = SmartPricing.currentPrice();
     const capacity = vehicle.batteryCapacity;
 
@@ -247,6 +249,18 @@ const SimEngine = {
 
   onUpdate(fn) {
     if (typeof fn === 'function') this._updateListeners.push(fn);
+  },
+
+  /** Redistribui sem avançar tempo, energia ou cobrança. */
+  rebalance() {
+    const setpoints = DemandController.allocate({ immediate: true });
+    for (const session of SiteModel.activeSessions()) {
+      session.setpointKW = setpoints.get(session) || 0;
+      session.powerKW = EVPhysics.effectivePowerKW(session.setpointKW, session.vehicle, session.evse, session.soc);
+      session.currentA = EVPhysics.powerToCurrent(session.powerKW, session.evse);
+      session.status = session.powerKW > 0 ? 'charging' : 'suspended';
+    }
+    ModbusBus.refresh();
   },
 
   _recordFinished(session) {
@@ -288,17 +302,27 @@ const SimEngine = {
     const price = SmartPricing.recompute();
     const posto = TariffEngine.getPosto();
 
+    let completed = false;
     for (const session of SiteModel.sessions.slice()) {
       if (session.status === 'finished') continue;
       const before = session.status;
       session.step(dtSim, setpoints.get(session) || 0, price, posto);
 
       if (session.status === 'finished' && before !== 'finished') {
+        completed = true;
+        session.evse.commandedA = 0;
         OcppClient.stopTransaction(session, 'EVDisconnected');
         this._recordFinished(session);
         if (session.ambient) SiteModel.removeSession(session);
+        else {
+          // Permanece visível no totem até o motorista fechar o resumo.
+          session.evse.status = 'Finishing';
+          if (session.evse.stationId === 1) this._emitRelay('DESLIGAR');
+        }
       }
     }
+
+    if (completed) this.rebalance();
 
     ModbusBus.refresh();
     this._emitMeterValues(dtSim);

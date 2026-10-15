@@ -83,6 +83,8 @@ test('HTML aberto por file usa backend local; acesso por IP conserva o host', ()
     window.SimClient.connect();
     assert.equal(destination, `ws://${hostname || '127.0.0.1'}:3001/ws`);
     handlers.open();
+    assert.deepEqual(states, [false]);
+    handlers.message({ data: JSON.stringify({ type: 'snapshot', data: { sessions: [] } }) });
     handlers.close();
     assert.deepEqual(states, [false, true, false]);
   }
@@ -123,7 +125,7 @@ test('tela só avança após resposta do servidor e cancela a espera se MQTT cai
   const app = window.App;
   app.selectedVehicle = vehicles[0];
   let opened = 0;
-  app.openMonitoring = () => opened++;
+  app.returnToStations = () => opened++;
   app.initMqttControls();
   app.startMonitoring();
   app.onAuthorization({ status: 'waiting' });

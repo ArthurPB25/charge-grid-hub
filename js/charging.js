@@ -9,6 +9,7 @@
  */
 window.ChargingSimulator = {
   stationId: null,
+  sessionId: null,
   callback: null,
 
   session: {
@@ -22,6 +23,22 @@ window.ChargingSimulator = {
 
   _bound: false,
 
+  bind() {
+    if (this._bound) return;
+    this._bound = true;
+    window.SimClient.onSnapshot(snapshot => this._sync(snapshot));
+  },
+
+  selectSession(sessionId) {
+    this.sessionId = sessionId;
+    this.bind();
+    if (window.SimClient.snapshot) this._sync(window.SimClient.snapshot);
+  },
+
+  getSnapshotSession(snapshot = window.SimClient.snapshot) {
+    return snapshot?.sessions?.find(s => s.id === this.sessionId) || null;
+  },
+
   /**
    * @param {number} stationId
    * @param {number} batteryCapacity capacidade em kWh (compatibilidade)
@@ -30,6 +47,7 @@ window.ChargingSimulator = {
   startSession(stationId, batteryCapacity, options) {
     const opts = options || {};
     this.stationId = stationId;
+    this.sessionId = null;
 
     const vehicle = opts.vehicle || this._resolveVehicle(batteryCapacity);
 
@@ -38,13 +56,11 @@ window.ChargingSimulator = {
       vehicle: vehicle,
       targetSoc: opts.targetSoc,
       startSoc: opts.startSoc,
-      paymentMethod: opts.paymentMethod
+      paymentMethod: opts.paymentMethod,
+      paymentId: opts.paymentId
     });
 
-    if (!this._bound) {
-      window.SimClient.onSnapshot(snapshot => this._sync(snapshot));
-      this._bound = true;
-    }
+    this.bind();
     // A sessão só aparecerá nos snapshots depois da autorização MQTT.
     return sent;
   },
@@ -58,10 +74,11 @@ window.ChargingSimulator = {
   },
 
   _sync(snapshot) {
-    const s = snapshot.userSession;
+    const s = this.getSnapshotSession(snapshot);
     if (!s) return;
 
     this.session = {
+      id: s.id,
       batteryCapacity: s.vehicle.batteryCapacity,
       batteryLevel: s.soc * 100,
       energyDelivered: s.energyGridKWh,
@@ -88,7 +105,7 @@ window.ChargingSimulator = {
 
   stopSession() {
     const dadosFinais = this.getSessionData();
-    window.SimClient.send('stop-session', { reason: 'Local' });
+    if (!this.sessionId || !window.SimClient.send('stop-session', { reason: 'Local', sessionId: this.sessionId })) return null;
     this.session = Object.assign({}, dadosFinais, { status: 'stopped', currentPower: 0 });
     return this.getSessionData();
   },

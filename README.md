@@ -21,15 +21,21 @@ energia e custo do simulador são identificados como estimativas. Consulte
 - Seleção de veículo e simulação de carregamento (SoC de chegada, tempo/energia estimados).
 - Pagamento via **Pix real**, integrado à API do Mercado Pago (QR Code dinâmico, aprovação automática em modo sandbox).
 - Tela de carregamento ao vivo: potência entregue, SoC, custo parcial, tempo restante.
-- Nota fiscal ao final da sessão, com detalhamento do preço cobrado.
+- Totem compartilhado: após autorizar a recarga, retorna às estações; cartões
+  ocupados mostram carro e porcentagem simulada. Toque para abrir os detalhes
+  e volte à lista sem encerrar a sessão. Várias estações podem carregar juntas.
+- Resumo ao final da sessão, com energia e valor calculados por faixa. Não é nota fiscal nem comprovação de pagamento.
 - Interface mobile-first pensada para tablet em pé (iPad retrato), com tema claro/escuro.
 
 ### Painel administrativo
 
-- Visão geral com KPIs reais do dia (sessões, energia fornecida, faturamento, ocupação) e gráfico de desempenho por dia simulado.
+- Assistente de Operação: relatórios por período e análise factual dos registros, sem recomendações automáticas. Integração Ollama local no servidor, sem cobrança de API; se indisponível, análise por regras
+  identificada. Configuração e fontes em [IA-ADMIN.md](IA-ADMIN.md).
+
+- Visão geral com sessões e horários registrados, energia estimada, valor calculado e ocupação do cadastro; gráfico por dia real de registro.
 - Monitoramento por estação: corrente comandada, potência, SoC, status (livre / carregando / limitado / suspenso / manutenção), com botão para tirar um ponto de operação.
 - Histórico de sessões concluídas e faturamento consolidado — dados reais desta execução, não fixos.
-- Tela de energia: demanda medida vs. contratada, geração solar, folga disponível para recarga, curva do dia.
+- GoodWe / SEMS+: importação pontual de registros reais, com data da consulta e indicação de ausência de telemetria ao vivo.
 - Tela de tarifação: composição do preço vigente (TE, TUSD, bandeira, tributos) segundo a **Tarifa Branca (ANEEL)**, linha do tempo dos postos horários, e terminal com o tráfego de protocolo (OCPP / Modbus) emitido pelo motor.
 
 ### Por baixo do capô
@@ -37,54 +43,83 @@ energia e custo do simulador são identificados como estimativas. Consulte
 - Motor de simulação único rodando no servidor (Node.js): física de carregamento dos veículos, controle dinâmico de demanda (respeitando o limite contratado do site), geração solar, tarifação por horário — tudo compartilhado entre tótem e painel em tempo real via **WebSocket**, então uma sessão iniciada no tótem aparece instantaneamente no admin.
 - Backend Pix isolado: o token do Mercado Pago nunca chega ao navegador.
 
+### Redistribuição de potência
+
+O controlador compartilha a potência disponível entre as recargas, considerando
+o consumo do prédio, a geração solar, a margem de segurança e a demanda de cada
+carro. A prioridade combina a energia que falta para chegar à meta e o tempo de
+espera. Carros que aceitam menos potência deixam a sobra para os demais.
+Entradas, encerramentos e conclusões recalculam a distribuição imediatamente,
+sem acrescentar energia ou custo. Reduções de corrente não aguardam histerese;
+aumentos durante os ticks têm estabilização para evitar alternâncias rápidas.
+Quando não cabe a corrente mínima configurada, parte das recargas fica pausada.
+
+A tela das estações mostra a potência distribuída por vaga. Para demonstrar,
+inicie duas ou mais recargas e use **Modo demonstração → Pico moderado / Pico
+severo**; depois clique em **Normalizar consumo** ou encerre uma recarga.
+Os perfis OCPP e as escritas Modbus de corrente ainda são **simulados**. O relé
+MQTT da estação 1 apenas liga/desliga; regular a corrente dos carregadores reais
+exige integrar o controlador ao equipamento e a medições reais do estabelecimento.
+
 ## Passo a passo para rodar
 
-### 1. Pré-requisitos
+### 1. Preparar a pasta e instalar dependências
 
-- [Node.js](https://nodejs.org/) 18 ou superior
-- Python 3 (só para servir os arquivos estáticos — qualquer outro servidor estático funciona no lugar)
-- Uma conta de teste no [Mercado Pago Developers](https://www.mercadopago.com.br/developers) (gratuita, para gerar cobranças Pix em modo sandbox)
+Abra o PowerShell na pasta `chargegrid-hub`. É necessário Node.js com npm;
+o ambiente de revisão usa Node.js 22. Não é necessário Python para executar o site.
 
-### 2. Instalar as dependências do backend
-
-```bash
-cd server
-npm install
+```powershell
+npm ci --prefix server
+if (-not (Test-Path 'server/.env')) {
+    Copy-Item 'server/.env.example' 'server/.env'
+}
 ```
 
-### 3. Configurar o token do Mercado Pago
+Edite `server/.env`: mantenha `PORT=3001`. Pix precisa de credenciais apropriadas
+do Mercado Pago. `MP_SANDBOX=true` controla o comportamento do pedido e não
+converte credenciais de produção em credenciais de teste. É possível testar o
+fluxo de demonstração sem token. Nunca publique `.env`.
 
-```bash
-cp server/.env.example server/.env
+### 2. Iniciar o projeto
+
+```powershell
+npm start --prefix server
 ```
 
-Edite `server/.env` e preencha `MP_ACCESS_TOKEN` com seu **Access Token de teste** (painel do Mercado Pago → Suas integrações → Credenciais de teste). Mantenha `MP_SANDBOX=true` — isso faz o Mercado Pago aprovar o Pix automaticamente em modo teste.
+O próprio backend serve HTML, CSS, JavaScript, API e WebSocket na mesma porta:
 
-### 4. Subir o backend (Pix + motor de simulação + WebSocket)
+- Totem: http://localhost:3001/
+- Administrativo: http://localhost:3001/admin.html
+- Saúde do backend: http://localhost:3001/healthz
 
-Em um terminal:
+### 3. IA local (opcional)
 
-```bash
-cd server
-node server.js
+Em outro terminal na mesma pasta:
+
+```powershell
+powershell -NoProfile -File server/start-ollama.ps1
 ```
 
-Deixe esse terminal aberto. Ele sobe em `http://localhost:3001` e só responde às rotas `/api/...` e ao WebSocket `/ws` — a página em si não é servida por ele.
+Se necessário, instale o Ollama e baixe `qwen2.5:3b` usando o comando que o
+script imprime, em outro terminal. O script usa um diretório próprio de modelos;
+inicie o serviço por ele antes do download. Veja [IA-ADMIN.md](IA-ADMIN.md).
+`AI_PROVIDER=rules` mantém a análise factual sem IA, sem exigir uma chave paga.
 
-### 5. Subir o front-end (HTML/CSS/JS)
+### 4. Demonstração e testes
 
-Em **outro** terminal, na raiz do projeto:
+No totem, selecione estação e carro. Escolha cartão e **Prosseguir para a recarga
+(demonstração)** para testar sem cobrança. A autorização aguarda LIGAR recebido
+por MQTT; o tópico compartilhado pode acionar um ESP32 inscrito. Não confunda
+sessões simuladas com controle físico de corrente.
 
-```bash
-python -m http.server 8322
+```powershell
+node --test server/test/*.test.js
 ```
 
-### 6. Abrir no navegador
-
-- **Tótem:** [http://localhost:8322](http://localhost:8322)
-- **Painel administrativo:** [http://localhost:8322/admin.html](http://localhost:8322/admin.html)
-
-Os dois se conectam ao mesmo motor de simulação no backend — abra as duas telas lado a lado para ver uma sessão iniciada no tótem refletir ao vivo no admin.
+Os testes do Pix usam um provedor controlado e não geram cobranças reais. A suíte
+inclui o servidor completo com histórico separado, redistribuição, concorrência,
+cancelamentos, entradas inválidas, datas, persistência e relatórios/PDF.
+Veja [AUDITORIA.md](AUDITORIA.md) para resultados e limites da revisão.
 
 ## Equipe
 

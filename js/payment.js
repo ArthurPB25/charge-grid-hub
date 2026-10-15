@@ -14,6 +14,12 @@ window.PaymentController = {
   orderData: null,
   selectedMethod: null, // 'pix', 'debit' ou 'credit'
 
+  createRequestId() {
+    // randomUUID is unavailable on tablets using plain HTTP over the LAN.
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    return Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+  },
+
   methodLabels: {
     pix: 'Pix',
     debit: 'Cartão de débito',

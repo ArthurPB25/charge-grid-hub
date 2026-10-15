@@ -42,7 +42,7 @@ window.PricingEngine = {
         batteryLevel: batteryLevel,
         targetSoc: opts.targetSoc,
         capKW: opts.capKW
-      })
+      }), signal: AbortSignal.timeout(10000)
     });
     const dados = await resposta.json();
     if (!resposta.ok) {
@@ -58,10 +58,12 @@ window.PricingEngine = {
   },
 
   formatDuration(minutes) {
+    if (!Number.isFinite(minutes) || minutes < 0) return 'indisponível';
     if (minutes < 1) return 'menos de 1 min';
-    if (minutes < 60) return `${Math.round(minutes)} min`;
-    const h = Math.floor(minutes / 60);
-    const m = Math.round(minutes % 60);
+    const rounded = Math.round(minutes);
+    if (rounded < 60) return `${rounded} min`;
+    const h = Math.floor(rounded / 60);
+    const m = rounded % 60;
     return m > 0 ? `${h}h ${m}min` : `${h}h`;
   },
 

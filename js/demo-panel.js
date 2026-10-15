@@ -97,8 +97,9 @@ window.DemoPanel = {
         </div>
 
         <div class="demo-hint">
-          Pico moderado estrangula todas as recargas sem suspender nenhuma.
-          Pico severo leva o carregador a 16 A e suspende uma sessão.
+          Inicie duas ou mais recargas para observar a redistribuição.
+          Os picos reduzem a potência disponível; se faltar corrente mínima,
+          algumas recargas pausam. Normalizar consumo libera potência novamente.
         </div>
       </div>
     `;

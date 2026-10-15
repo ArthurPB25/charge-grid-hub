@@ -75,3 +75,22 @@ test('importação SEMS tem fonte, instante de consulta e total sem duplicatas',
   fs.writeFileSync(file, JSON.stringify({ capturedAt: '2026-09-25T16:00:00Z', records: [{ ...record, energyKWh: -1 }] }));
   assert.equal(readSemsImport(file).status, 'invalid-import');
 });
+
+test('histórico rejeita registro inválido antes de operar e não sobrescreve o arquivo', t => {
+  const file = temporaryFile(t);
+  const raw = JSON.stringify([{ id: 'bad', finishedAt: 'invalid', energyGridKWh: 2, cost: 3 }]);
+  fs.writeFileSync(file, raw);
+  assert.throws(() => new TotemHistory(file), /histórico inválido/);
+  assert.equal(fs.readFileSync(file, 'utf8'), raw);
+});
+
+test('SEMS recusa datas impossíveis e término anterior ao início', t => {
+  const file = temporaryFile(t);
+  for (const record of [
+    { startedAtDisplay: '31/02/2026 10:00:00', finishedAtDisplay: '31/02/2026 11:00:00', energyKWh: 1 },
+    { startedAtDisplay: '25/09/2026 11:00:00', finishedAtDisplay: '25/09/2026 10:00:00', energyKWh: 1 }
+  ]) {
+    fs.writeFileSync(file, JSON.stringify({ capturedAt: '2026-09-25T16:00:00Z', records: [record] }));
+    assert.equal(readSemsImport(file).status, 'invalid-import');
+  }
+});

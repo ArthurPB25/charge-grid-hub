@@ -79,10 +79,10 @@ const DemandController = {
     const allowedRest = (limit * windowHours - this._windowEnergyKWh) / remainingHours;
 
     const ceiling = Math.min(limit, allowedRest);
-    return Math.max(0, ceiling - SiteModel.netGridKW());
+    return Math.max(0, ceiling - SiteModel.buildingLoadKW() + SiteModel.solarKW);
   },
 
-  allocate() {
+  allocate({ immediate = false } = {}) {
     const limit = SiteModel.limitKW();
 
     const available = this.headroomForEvKW();
@@ -97,7 +97,8 @@ const DemandController = {
     for (let guard = 0; guard < sessions.length; guard += 1) {
       const starved = pool.filter(s => {
         const kW = allocation.get(s) || 0;
-        return Math.floor(EVPhysics.powerToCurrent(kW, s.evse)) < SiteConfig.minCurrentA;
+        return kW < s.demandKW() - 0.000001 &&
+          Math.floor(EVPhysics.powerToCurrent(kW, s.evse) + 1e-9) < SiteConfig.minCurrentA;
       });
       if (!starved.length || pool.length <= 1) break;
 
@@ -120,18 +121,20 @@ const DemandController = {
       let amps;
       if (isSuspended) {
         amps = 0;
-      } else if (!this.constrained) {
-        amps = evse.iMax;
+      } else if (targetKW >= session.demandKW() - 0.000001) {
+        // O veículo pode consumir menos que o mínimo do piloto AC.
+        amps = Math.min(evse.iMax, Math.max(SiteConfig.minCurrentA,
+          Math.ceil(EVPhysics.powerToCurrent(session.demandKW(), evse))));
       } else {
-        amps = Math.min(evse.iMax, Math.floor(EVPhysics.powerToCurrent(targetKW, evse)));
+        amps = Math.min(evse.iMax, Math.floor(EVPhysics.powerToCurrent(targetKW, evse) + 1e-9));
         if (amps < SiteConfig.minCurrentA) amps = 0;
       }
 
       commands.push({ session: session, evse: evse, amps: amps });
     }
 
-    this._updateState(limit, suspended.length > 0);
-    this._applyHysteresis(commands);
+    this._applyHysteresis(commands, immediate);
+    this._updateState(limit, commands.some(cmd => cmd.evse.commandedA === 0));
 
     const setpoints = new Map();
     for (const cmd of commands) {
@@ -146,7 +149,7 @@ const DemandController = {
     let pending = sessions.slice();
     let remaining = available;
 
-    for (let iter = 0; iter < 5 && pending.length; iter += 1) {
+    for (let iter = 0; iter < sessions.length && pending.length; iter += 1) {
       const totalPriority = pending.reduce((sum, s) => sum + Math.max(0.01, s.priority()), 0);
       const satisfied = [];
 
@@ -176,20 +179,26 @@ const DemandController = {
     return result;
   },
 
-  _applyHysteresis(commands) {
-    for (const cmd of commands) {
+  _applyHysteresis(commands, immediate) {
+    // Primeiro libera potência, depois aumenta os outros carregadores.
+    for (const cmd of commands.slice().sort((a, b) =>
+      Number(b.amps < b.evse.commandedA) - Number(a.amps < a.evse.commandedA))) {
       const evse = cmd.evse;
       const last = this._lastCommand[evse.id];
       const current = evse.commandedA;
       const target = cmd.amps;
 
-      if (last && this._simSeconds - last.at < this.minIntervalSim) continue;
+      if (target === current) continue;
+      // Reduções nunca aguardam histerese: o orçamento precisa ser respeitado
+      // inclusive quando chega outro carro ou o consumo do prédio aumenta.
+      const reducing = target < current;
+      if (!immediate && !reducing && last && this._simSeconds - last.at < this.minIntervalSim) continue;
 
       const delta = Math.abs(target - current);
       const resuming = current === 0 && target >= SiteConfig.minCurrentA;
 
-      if (resuming && last && this._simSeconds - last.at < this.resumeHoldSim) continue;
-      if (delta < this.minDeltaA && !(target === 0 && current > 0)) continue;
+      if (!immediate && !reducing && resuming && last && this._simSeconds - last.at < this.resumeHoldSim) continue;
+      if (!immediate && !reducing && delta < this.minDeltaA) continue;
 
       evse.commandedA = target;
       this._lastCommand[evse.id] = { amps: target, at: this._simSeconds };
@@ -231,7 +240,17 @@ const DemandController = {
   },
 
   snapshot() {
+    const stations = SiteModel.evses.map(evse => {
+      const session = SiteModel.sessions.find(s => s.evseId === evse.id && s.status !== 'finished');
+      const requestedKW = session ? session.demandKW() : 0;
+      const allocatedKW = session ? Math.min(requestedKW, EVPhysics.currentToPower(evse.commandedA, evse)) : 0;
+      return { stationId: evse.stationId, requestedKW, allocatedKW, maxPowerKW: evse.maxPowerKW,
+        status: !session ? 'idle' : evse.commandedA === 0 ? 'paused' : allocatedKW < requestedKW - 0.01 ? 'limited' : 'charging' };
+    });
+    const allocatedKW = stations.reduce((sum, station) => sum + station.allocatedKW, 0);
     return {
+      allocation: { stations, allocatedKW, remainingKW: Math.max(0, this.availableForPlanningKW - allocatedKW),
+        policy: 'urgency-and-wait', simulated: true },
       state: this.state,
       measuredKW: this.measuredKW,
       smoothedKW: this.emaKW,

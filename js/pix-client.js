@@ -18,13 +18,13 @@
 window.PixClient = {
   baseUrl: window.ChargeGridConfig.apiOrigin,
 
-  async criarCobranca({ valor, descricao, email }) {
+  async criarCobranca({ valor, descricao, email, checkout, requestId }) {
     let resposta;
     try {
       resposta = await fetch(`${this.baseUrl}/api/pix/criar-cobranca`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ valor, descricao, email })
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestId },
+        body: JSON.stringify({ valor, descricao, email, checkout }), signal: AbortSignal.timeout(20000)
       });
     } catch (err) {
       throw new Error(
@@ -41,10 +41,10 @@ window.PixClient = {
   },
 
   async consultarStatus(paymentId) {
-    const resposta = await fetch(`${this.baseUrl}/api/pix/status/${encodeURIComponent(paymentId)}`);
+    const resposta = await fetch(`${this.baseUrl}/api/pix/status/${encodeURIComponent(paymentId)}`, { signal: AbortSignal.timeout(20000) });
     const dados = await resposta.json().catch(() => ({}));
     if (!resposta.ok) {
-      throw new Error(dados.erro || 'Não foi possível consultar o status do pagamento.');
+      throw Object.assign(new Error(dados.erro || 'Não foi possível consultar o status do pagamento.'), { status: resposta.status });
     }
     return dados;
   },
@@ -56,6 +56,7 @@ window.PixClient = {
    */
   acompanharStatus(paymentId, { intervaloMs = 3000, onStatus, onErro } = {}) {
     let ativo = true;
+    let timer;
 
     const passo = async () => {
       if (!ativo) return;
@@ -64,16 +65,17 @@ window.PixClient = {
         if (!ativo) return;
         const continuar = onStatus ? onStatus(status, statusDetail) : true;
         if (continuar === false || status === 'approved' || status === 'cancelled' || status === 'rejected') {
+          ativo = false;
           return;
         }
       } catch (err) {
-        if (onErro) onErro(err);
-        return;
+        if (!ativo) return;
+        if (onErro?.(err) === false) { ativo = false; return; }
       }
-      if (ativo) setTimeout(passo, intervaloMs);
+      if (ativo) timer = setTimeout(passo, intervaloMs);
     };
 
-    setTimeout(passo, intervaloMs);
-    return () => { ativo = false; };
+    timer = setTimeout(passo, intervaloMs);
+    return () => { ativo = false; clearTimeout(timer); };
   }
 };

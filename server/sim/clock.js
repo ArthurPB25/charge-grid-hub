@@ -10,6 +10,7 @@
  * um minuto real equivale a uma hora simulada.
  */
 import { createRequire } from 'node:module';
+import { finiteRange } from './validation.js';
 const require = createRequire(import.meta.url);
 const SiteConfig = require('../../data/site-config.js');
 
@@ -42,7 +43,9 @@ const SimClock = {
 
   /** Velocidade em segundos simulados por segundo real. */
   setSpeed(multiplier) {
-    this.speed = Math.max(1, multiplier);
+    if (!finiteRange(multiplier, 1, 240)) return false;
+    this.speed = multiplier;
+    return true;
   },
 
   /** Registra um observador. Recebe (dtSim em segundos, Date simulada, meta). */
@@ -56,6 +59,7 @@ const SimClock = {
    * é demonstrar a virada de posto tarifário, não simular as horas puladas.
    */
   jumpToHour(hour) {
+    if (!Number.isInteger(hour) || !finiteRange(hour, 0, 23)) return false;
     const target = new Date(this.simDate);
     target.setHours(hour, 0, 0, 0);
     if (target <= this.simDate) target.setDate(target.getDate() + 1);
@@ -68,6 +72,8 @@ const SimClock = {
    * exatos, sem integrar o tempo pulado.
    */
   setTime(hour, minute) {
+    if (!Number.isInteger(hour) || !finiteRange(hour, 0, 23) ||
+        (minute != null && (!Number.isInteger(minute) || !finiteRange(minute, 0, 59)))) return false;
     const target = new Date(this.simDate);
     target.setHours(hour, minute || 0, 0, 0);
     this.simDate = target;
@@ -76,6 +82,7 @@ const SimClock = {
 
   /** Avança ou recua o relógio em minutos, para acertar o enquadramento. */
   nudgeMinutes(delta) {
+    if (!finiteRange(delta, -1440, 1440)) return false;
     this.simDate = new Date(this.simDate.getTime() + delta * 60000);
     this._emit(0, { jumped: true });
   },
@@ -85,6 +92,7 @@ const SimClock = {
    * Serve para demonstrar que sábado e domingo não têm posto de ponta.
    */
   setDayOfWeek(dow) {
+    if (!Number.isInteger(dow) || !finiteRange(dow, 0, 6)) return false;
     const target = new Date(this.simDate);
     const diff = (dow - target.getDay() + 7) % 7;
     target.setDate(target.getDate() + (diff === 0 ? 0 : diff));

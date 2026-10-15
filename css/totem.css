@@ -5,6 +5,27 @@
   overflow: hidden;
 }
 
+.energy-distribution {
+  margin: 0 0 var(--space-lg);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+}
+.energy-distribution summary { cursor: pointer; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-weight: 600; }
+.energy-distribution summary small { margin-left: 8px; font-size: 10px; color: var(--color-text-secondary); font-weight: 400; }
+.energy-distribution summary strong { color: var(--color-primary); }
+.energy-distribution p { color: var(--color-text-secondary); font-size: 12px; margin: 10px 0; }
+.energy-stations { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.energy-station > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; font-size: 12px; }
+.energy-station progress { display: block; width: 100%; height: 7px; margin: 8px 0; accent-color: var(--color-primary); border: none; border-radius: 8px; overflow: hidden; }
+.energy-station progress::-webkit-progress-bar { background: var(--color-surface-elevated); }
+.energy-station progress::-webkit-progress-value { background: var(--color-primary); transition: width .25s; }
+.energy-station small { color: var(--color-text-secondary); font-size: 11px; }
+.energy-station[data-status="paused"] small { color: var(--color-primary); }
+.energy-distribution .energy-policy { margin-bottom: 0; }
+@media (max-width: 600px) { .energy-stations { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 .screen {
   position: absolute;
   top: var(--topbar-height);
@@ -200,10 +221,36 @@
 }
 
 .station-card {
+  font: inherit;
+  color: var(--color-text);
+  text-align: left;
   cursor: pointer;
   position: relative;
   overflow: hidden;
 }
+
+.stations-help {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin: 0 0 var(--space-md);
+  line-height: 1.5;
+}
+.station-card:disabled { cursor: default; opacity: 0.65; }
+.station-card:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 3px; }
+.station-card.occupied { border-color: var(--color-success); }
+.station-header { flex-wrap: wrap; gap: var(--space-sm); }
+.station-status { font-size: var(--font-size-xs); font-weight: 700; color: var(--color-text-secondary); }
+.occupied .station-status { color: var(--color-success); }
+.station-session { margin-top: var(--space-md); }
+.station-vehicle, .monitoring-vehicle { font-weight: 700; }
+.monitoring-vehicle { text-align: center; font-size: var(--font-size-xl); }
+.station-charge { display: flex; align-items: baseline; justify-content: space-between; margin-top: var(--space-sm); }
+.station-charge strong { font-size: var(--font-size-2xl); color: var(--color-success); }
+.station-charge span, .station-source { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.station-progress { height: 6px; margin-top: var(--space-sm); border-radius: var(--radius-full); background: var(--color-surface-elevated); overflow: hidden; }
+.station-progress div { height: 100%; background: var(--color-success); transition: width 250ms; }
+.station-action { margin-top: var(--space-md); font-size: var(--font-size-sm); color: var(--color-primary); }
+.station-source { display: block; margin-top: var(--space-xs); }
 .station-card.selected {
   border-color: var(--color-primary);
   background: linear-gradient(180deg, rgba(var(--color-primary-rgb), 0.12), transparent);
@@ -567,6 +614,8 @@
 }
 
 .vehicle-card {
+  font: inherit;
+  color: var(--color-text);
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -64,11 +64,11 @@ const ChargeSession = {
 
       step(dtSim, setpointKW, price, posto) {
         if (this.status === 'finished') return;
-
-        this.elapsedSim += dtSim;
+        if (!Number.isFinite(dtSim) || dtSim < 0 || !Number.isFinite(setpointKW) || setpointKW < 0) return;
         this.setpointKW = setpointKW;
 
         if (setpointKW <= 0) {
+          this.elapsedSim += dtSim;
           this.status = 'suspended';
           this.suspendedFor += dtSim;
           this.powerKW = 0;
@@ -81,8 +81,11 @@ const ChargeSession = {
         this.currentA = EVPhysics.powerToCurrent(this.powerKW, this.evse);
 
         const hours = dtSim / 3600;
-        const gridKWh = this.powerKW * hours;
-        const batteryKWh = gridKWh * EVPhysics.efficiency[this.evse.current];
+        const efficiency = EVPhysics.efficiency[this.evse.current];
+        const remaining = Math.max(0, this.socTarget - this.soc) * this.vehicle.batteryCapacity;
+        const batteryKWh = Math.min(remaining, this.powerKW * hours * efficiency);
+        const gridKWh = batteryKWh / efficiency;
+        this.elapsedSim += this.powerKW > 0 ? Math.min(dtSim, gridKWh / this.powerKW * 3600) : dtSim;
 
         this.energyGridKWh += gridKWh;
         this.energyBatteryKWh += batteryKWh;

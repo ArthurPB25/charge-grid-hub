@@ -7,10 +7,18 @@ As sessões artificiais e a manutenção fictícia da quarta estação foram rem
 da inicialização padrão. O cadastro de quatro pontos continua sendo configuração
 do protótipo, não descoberta de quatro carregadores físicos no SEMS+.
 
-Encerramentos pelo motorista, MQTT, conclusão automática, desconexão ou manutenção
+Encerramentos pelo motorista, MQTT, conclusão automática ou manutenção
 registram a sessão uma única vez. Datas do histórico são do relógio real; o dia é
 agrupado no fuso America/Sao_Paulo. Energia e valores calculados continuam marcados
 como estimativas enquanto o motor de recarga usar simulação.
+
+O totem é compartilhado: após autorizar uma recarga, volta à lista de estações.
+Cada estação ocupada mostra veículo, porcentagem estimada e potência; tocar nela
+abre os detalhes. Voltar à lista, iniciar outro atendimento ou atualizar o navegador
+não encerra sessões. As sessões continuam na memória do servidor e são acompanhadas
+pelo identificador, sem depender da conexão que as iniciou. Ao concluir a meta,
+a estação mostra **Concluída** até o motorista consultar o resumo e liberá-la.
+O encerramento pelo totem continua compartilhado, sem autenticação individual.
 
 O meio informado pelo totem diferencia Pix e demonstração. **Pix informado não é
 comprovante de recebimento conciliado** e pode ser sandbox. O admin não classifica

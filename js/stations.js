@@ -22,7 +22,8 @@ window.StationManager = {
 
   selectStation(id) {
     const station = this.getStation(id);
-    if (station && station.status === 'available') {
+    const evse = window.SimClient.snapshot?.evses.find(e => e.stationId === id);
+    if (station && window.SimClient.connected && evse?.status === 'Available') {
       this.selectedStationId = id;
       return station;
     }

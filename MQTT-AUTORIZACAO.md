@@ -12,10 +12,19 @@ sem dependências novas.
 3. Na tela **Autorização da recarga**, clique **LIGAR · Autorizar** ou publique
    o comando pelo painel externo. A sessão só começa quando o navegador recebe
    LIGAR do broker e encaminha a autorização ao servidor.
-4. **DESLIGAR** durante a espera nega a autorização; durante a recarga encerra
-   a sessão e abre o resumo. O botão de encerrar já existente continua funcionando.
+4. Após a autorização, o totem volta à lista de estações. O cartão da estação
+   mostra o veículo e a porcentagem simulada; tocar nele abre o acompanhamento.
+   Voltar à lista não interrompe a recarga e permite atender outro motorista.
+5. **DESLIGAR** durante a espera nega a autorização. No acompanhamento,
+   os botões **DESLIGAR · Encerrar recarga** e **Encerrar Carregamento** enviam
+   o identificador da sessão selecionada ao backend, em qualquer estação.
+   Funcionam também após reconectar ou iniciar outra recarga. Se já estiver
+   concluída, ambos mostram **Ver resumo e liberar estação**. Só a estação 1
+   envia também o corte ao relé físico. Comandos externos MQTT continuam
+   restritos à estação física 1.
 
-Os botões ficam desabilitados quando não há conexão MQTT. A espera expira em
+Os botões de autorização ficam desabilitados quando não há conexão MQTT.
+O encerramento pelo site depende da conexão com o backend. A espera expira em
 120 segundos e pode ser cancelada ou repetida. Repetir a autorização não gera
 uma nova cobrança. Cancelar a solicitação não estorna um Pix aprovado.
 
@@ -50,11 +59,19 @@ O tópico `meu_projeto/tomada/status` permanece para telemetria do hardware.
 ## Limites do protótipo
 
 O tópico é compartilhado, sem identificação de estação ou sessão no payload,
-e controla uma única sessão do motorista. Um comando novo atua na sessão que
-estiver aguardando/ativa naquele momento. O broker público e a ponte WebSocket
+e controla uma única estação física legada (estação 1). As outras estações representam
+sessões independentes no simulador e não enviam comandos automáticos a esse relé.
+Um comando LIGAR autoriza a solicitação pendente. O broker público e a ponte WebSocket
 não autenticam o emissor: isto é uma demonstração, não um mecanismo de acesso
-pronto para produção. Também não substitui a verificação de pagamento no servidor.
-A perda do navegador encerra a simulação, mas não garante corte do relé físico.
+pronto para produção. Para sessões Pix, o servidor confere a aprovação, o valor e o vínculo da cobrança
+com estação, veículo e bateria/meta; cada pagamento libera somente uma sessão.
+Esse vínculo fica na memória: reiniciar o backend exige tratamento pelo operador
+para cobranças anteriores e não constitui conciliação financeira permanente.
+A perda do navegador cancela somente a autorização pendente; sessões iniciadas
+continuam no servidor. A ponte MQTT física ainda depende do navegador, portanto
+esta mudança não oferece supervisão física durante uma desconexão. Reiniciar o
+backend perde as sessões em andamento. Ao atingir a meta, uma sessão do totem
+permanece visível como concluída até a consulta do resumo liberar sua estação.
 
 ## Verificação local
 

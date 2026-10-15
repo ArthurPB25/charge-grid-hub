@@ -2,7 +2,7 @@
 
 class AdminDashboard {
   constructor() {
-    this.sections = ['overview', 'stations', 'sessions', 'billing', 'energy', 'pricing'];
+    this.sections = ['overview', 'stations', 'sessions', 'billing', 'energy', 'pricing', 'reports'];
     this.currentSection = 'overview';
     this.stationCatalog = window.MockData || {};
     this.logs = [];
@@ -223,7 +223,7 @@ class AdminDashboard {
       item.classList.remove('active');
       if (item.getAttribute('data-section') === sectionId) {
         item.classList.add('active');
-        document.getElementById('pageTitle').textContent = item.textContent.trim();
+        document.getElementById('pageTitle').textContent = sectionId === 'reports' ? 'Assistente de Operação' : item.textContent.trim();
       }
     });
 
@@ -247,6 +247,7 @@ class AdminDashboard {
   renderContainers() {
     const container = document.getElementById('contentContainer');
     container.innerHTML = '<div id="admin-connection-status" class="card-panel" role="status">Conectando ao servidor…</div>' + this.sections.map(sec => `<div id="sec-${sec}" class="section"></div>`).join('');
+    window.OperationalReports.init(document.getElementById('sec-reports'));
   }
 
   // --- OVERVIEW ---
@@ -341,7 +342,7 @@ class AdminDashboard {
   getMiniStationCard(evse) {
     const cadastro = (this.stationCatalog.stations || []).find(s => s.id === evse.stationId) || {};
     const sessao = this.snapshot.sessions.find(s => s.evseId === evse.id && s.status !== 'finished');
-    const limitado = sessao && evse.commandedA < evse.iMax && evse.commandedA > 0;
+    const limitado = sessao && this.snapshot.demand.allocation?.stations.some(s => s.stationId === evse.stationId && s.status === 'limited');
 
     let badgeClass = 'success';
     let statusText = 'Livre';
@@ -461,7 +462,7 @@ class AdminDashboard {
     grid.innerHTML = this.snapshot.evses.map(evse => {
       const cadastro = (this.stationCatalog.stations || []).find(s => s.id === evse.stationId) || {};
       const sessao = this.snapshot.sessions.find(s => s.evseId === evse.id && s.status !== 'finished');
-      const limitado = sessao && evse.commandedA < evse.iMax && evse.commandedA > 0;
+      const limitado = sessao && this.snapshot.demand.allocation?.stations.some(s => s.stationId === evse.stationId && s.status === 'limited');
 
       let rotulo = 'DISPONÍVEL';
       let estiloBadge = 'success';
@@ -778,17 +779,18 @@ class AdminDashboard {
 
     const timeline = document.getElementById('postoTimeline');
     if (timeline && this.snapshot) {
-      const util = this.snapshot.clock.isWeekday;
+      const now = new Date();
+      const { isWeekday: util, hourFloat } = window.TariffEngine.clockParts(now);
       timeline.innerHTML = window.TariffEngine.postosDoDia(util).map(faixa => `
         <div class="timeline-band band-${faixa.posto}"
              style="left:${(faixa.from / 24) * 100}%; width:${((faixa.to - faixa.from) / 24) * 100}%"></div>
       `).join('') +
-      `<div class="timeline-now" style="left:${(this.snapshot.clock.hourFloat / 24) * 100}%"></div>`;
+      `<div class="timeline-now" style="left:${(hourFloat / 24) * 100}%"></div>`;
     }
 
     const nota = document.getElementById('postoNote');
     if (nota && this.snapshot) {
-      nota.textContent = this.snapshot.clock.isWeekday
+      nota.textContent = window.TariffEngine.clockParts().isWeekday
         ? 'Dia útil: ponta das 18h às 21h, intermediário nas horas adjacentes.'
         : 'Fim de semana: tarifa fora-ponta durante as 24 horas.';
     }

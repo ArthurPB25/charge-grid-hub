@@ -23,12 +23,13 @@ window.SimClient = {
   _reconnectDelay: 1000,
 
   connect() {
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return this;
     const url = window.ChargeGridConfig.wsUrl;
     this.ws = new WebSocket(url);
 
     this.ws.addEventListener('open', () => {
       this._reconnectDelay = 1000;
-      this._connectionChanged(true);
+      // Wait for a fresh snapshot before enabling operations after reconnect.
     });
     this.ws.addEventListener('message', e => {
       let msg;
@@ -57,6 +58,7 @@ window.SimClient = {
   _onMessage(msg) {
     if (msg.type === 'snapshot') {
       this.snapshot = msg.data;
+      if (!this.connected) this._connectionChanged(true);
       for (const fn of this._snapshotListeners) fn(this.snapshot);
     } else if (msg.type === 'ocpp-frame' || msg.type === 'modbus-write') {
       for (const fn of this._protocolListeners) fn(msg);
@@ -100,7 +102,12 @@ window.SimClient = {
       console.warn('[SimClient] WebSocket não conectado, comando descartado:', type);
       return false;
     }
-    this.ws.send(JSON.stringify(payload ? { type, payload } : { type }));
-    return true;
+    try {
+      this.ws.send(JSON.stringify(payload ? { type, payload } : { type }));
+      return true;
+    } catch {
+      this._connectionChanged(false);
+      return false;
+    }
   }
 };

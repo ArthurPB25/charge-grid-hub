@@ -28,8 +28,8 @@
       
       <div class="availability-display">
         <div class="availability-circle">
-          <div class="availability-count" id="welcome-count">2</div>
-          <div class="availability-label" id="welcome-label">Estações Disponíveis</div>
+          <div class="availability-count" id="welcome-count">—</div>
+          <div class="availability-label" id="welcome-label">Aguardando conexão</div>
         </div>
 
         <!-- Só informação que interessa a quem vai carregar: quanto custa
@@ -37,12 +37,12 @@
              chamada para ação, não o painel do operador. -->
         <div class="welcome-tariff" id="welcome-tariff">
           <span class="welcome-tariff-label" id="welcome-tariff-posto">Tarifa agora</span>
-          <span class="welcome-tariff-value" id="welcome-tariff-value">R$ 0,00<small>/kWh</small></span>
+          <span class="welcome-tariff-value" id="welcome-tariff-value">Indisponível</span>
         </div>
       </div>
 
       <div class="welcome-action">
-        <button class="btn btn-primary btn-large animate-slide-up" id="btn-start">Iniciar Carregamento</button>
+        <button class="btn btn-primary btn-large animate-slide-up" id="btn-start" disabled>Iniciar Carregamento</button>
       </div>
       <div class="app-footer">Powered by GoodWe</div>
     </div>
@@ -51,7 +51,7 @@
     <div id="screen-stations" class="screen">
       <div class="app-header">
         <button class="btn btn-outline btn-back" data-target="welcome">← Voltar</button>
-        <div class="header-title">Selecionar Estação</div>
+        <div class="header-title">Estações de Recarga</div>
         <div class="step-indicator">
           <div class="step-dot"></div>
           <div class="step-dot active"></div>
@@ -62,9 +62,17 @@
       </div>
 
       <div class="content-area">
+        <p class="stations-help" id="stations-message" role="status">Escolha uma estação livre ou toque em uma recarga para acompanhar.</p>
         <div class="stations-grid" id="stations-grid">
           <!-- Populated by JS -->
         </div>
+
+        <details class="energy-distribution" open>
+          <summary><span>Distribuição de energia <small>Simulação</small></span><strong id="energy-total">-- kW em recarga</strong></summary>
+          <p id="energy-budget">Aguardando conexão com o controlador…</p>
+          <div class="energy-stations" id="energy-stations"></div>
+          <p class="energy-policy">A potência é compartilhada conforme a necessidade da bateria e o tempo de espera. Ao terminar uma recarga, as demais recebem a potência liberada.</p>
+        </details>
 
         <div class="estimate-panel">
           <div class="estimate-item">
@@ -221,10 +229,10 @@
           <div class="pending-scope">
             <div class="pending-scope-title">Já implementado nesta versão</div>
             <ul>
-              <li>Pix real via Mercado Pago (volte e escolha essa opção)</li>
-              <li>Controle Dinâmico de Demanda com escrita Modbus no carregador</li>
+            <li>Integração Pix via Mercado Pago (requer credenciais configuradas)</li>
+            <li>Controle Dinâmico de Demanda com escrita Modbus simulada</li>
               <li>Tarifação dinâmica pelas três variáveis do Smart Pricing</li>
-              <li>Tradução Modbus RS-485 → OCPP 1.6J</li>
+            <li>Mensagens Modbus RS-485 e OCPP 1.6J simuladas</li>
               <li>Simulação física da recarga com múltiplas sessões simultâneas</li>
             </ul>
           </div>
@@ -308,8 +316,8 @@
     <!-- Screen 4: Monitoring -->
     <div id="screen-monitoring" class="screen">
       <div class="app-header">
-        <div></div> <!-- spacer -->
-        <div class="header-title">Carregamento em Andamento</div>
+        <button class="btn btn-outline" id="btn-back-stations">← Estações</button>
+        <div class="header-title" id="monitoring-title">Detalhes da Recarga</div>
         <div class="step-indicator">
           <div class="step-dot"></div>
           <div class="step-dot"></div>
@@ -320,10 +328,12 @@
       </div>
 
       <div class="monitoring-content">
+        <div class="monitoring-vehicle" id="monitoring-vehicle"></div>
+        <p class="stations-help">Recarga simulada · energia, bateria e custo são estimativas.</p>
         <div class="mqtt-control">
           <strong data-mqtt-status role="status">MQTT desconectado</strong>
           <div class="mqtt-control-actions">
-            <button class="btn btn-outline" data-mqtt-command="DESLIGAR" disabled>DESLIGAR · Encerrar recarga</button>
+            <button class="btn btn-outline" id="btn-stop-charge" disabled>DESLIGAR · Encerrar recarga</button>
           </div>
           <pre data-mqtt-log class="mqtt-control-log" aria-label="Log de comandos MQTT"></pre>
         </div>
@@ -442,12 +452,12 @@
         <div id="modal-segments"></div>
 
         <div class="tariff-row kind-total">
-          <span class="label">Total pago</span>
+          <span class="label">Valor calculado da recarga</span>
           <strong class="value" id="modal-cost">--</strong>
         </div>
       </div>
       <div class="modal-actions">
-        <button class="btn btn-primary" style="width:100%" id="btn-new-charge">Novo Carregamento</button>
+        <button class="btn btn-primary" style="width:100%" id="btn-new-charge">Voltar às estações</button>
         <button class="btn btn-outline" style="width:100%" id="btn-close-modal">Fechar</button>
       </div>
     </div>

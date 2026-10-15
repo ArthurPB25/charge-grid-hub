@@ -35,12 +35,16 @@ const TariffEngine = {
    * hora que o motorista vê na tela, mesmo que a própria sessão de
    * carregamento avance mais rápido que o tempo real.
    */
-  getPosto(date) {
-    const d = date || new Date();
-    const day = d.getDay();
-    if (day === 0 || day === 6) return 'fora';
+  clockParts(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date);
+    const part = name => parts.find(p => p.type === name).value;
+    const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(part('weekday'));
+    return { day, isWeekday: day >= 1 && day <= 5, hourFloat: Number(part('hour')) + Number(part('minute')) / 60 };
+  },
 
-    const h = d.getHours() + d.getMinutes() / 60;
+  getPosto(date) {
+    const { day, hourFloat: h } = this.clockParts(date);
+    if (day === 0 || day === 6) return 'fora';
     if (h >= 18 && h < 21) return 'ponta';
     if ((h >= 17 && h < 18) || (h >= 21 && h < 22)) return 'inter';
     return 'fora';
