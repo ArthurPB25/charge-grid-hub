@@ -12,12 +12,18 @@ import { createRequire } from 'node:module';
 import { finiteRange, validSessionConfig } from './sim/validation.js';
 const { vehicles } = createRequire(import.meta.url)('../data/mock-data.js');
 
-export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, authorization, pix) {
+export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, authorization, pix, tapDemo) {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws', maxPayload: 16384 });
 
   // A ponte física legada corresponde apenas à estação 1. As sessões
   // pertencem ao servidor e sobrevivem à navegação e reconexão do totem.
   let userSessionOwner = null;
+  const tapWatchers = new Map();
+  tapDemo?.setBeforeStart(order => {
+    const owner = tapWatchers.get(order.id);
+    if (order.config.stationId === 1) userSessionOwner = owner?.readyState === owner?.OPEN ? owner : null;
+    tapWatchers.delete(order.id);
+  });
 
   function broadcast(msg) {
     const json = JSON.stringify(msg);
@@ -67,6 +73,10 @@ export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, au
 
       try {
       switch (msg.type) {
+        case 'tap-demo:watch':
+          if (!tapDemo?.canWatch(p.id, p.token)) return commandError();
+          tapWatchers.set(p.id, ws);
+          break;
         case 'start-session': {
           const revision = ++requestRevision;
           const vehicle = vehicles.find(v => v.id === p.vehicle?.id);
@@ -167,6 +177,7 @@ export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, au
     });
 
     ws.on('close', () => {
+      for (const [id, owner] of tapWatchers) if (owner === ws) tapWatchers.delete(id);
       requestRevision++;
       authorization.cancel(ws);
       if (userSessionOwner === ws) {

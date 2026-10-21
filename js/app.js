@@ -53,6 +53,7 @@ window.App = {
     this.showScreen('welcome');
     this.updateWelcomeScreen();
     this.updateSimClock();
+    window.TapDemo?.restore();
   },
 
   /** Relógio real do dispositivo, fixo na tela inteira — é o que explica pro
@@ -152,7 +153,8 @@ window.App = {
       if (window.PaymentController.selectedMethod === 'pix') {
         this.startRealPix();
       } else {
-        this.showPaymentPending();
+        if (window.TapDemo) window.TapDemo.begin();
+        else this.showPaymentPending();
       }
     });
 
@@ -611,7 +613,7 @@ window.App = {
   },
 
   showPaymentStep(step) {
-    ['method', 'pending', 'pix', 'authorization'].forEach(s => {
+    ['method', 'pending', 'pix', 'authorization', 'tap'].forEach(s => {
       const el = document.getElementById(`payment-step-${s}`);
       if (el) el.style.display = s === step ? 'flex' : 'none';
     });

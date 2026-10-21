@@ -22,6 +22,7 @@ import { readSemsImport } from './sems-import.js';
 import { attachReportRoutes } from './operational-reports.js';
 import { fileURLToPath } from 'node:url';
 import { attachPixRoutes } from './pix.js';
+import { attachTapDemoRoutes } from './tap-demo.js';
 
 const app = express();
 app.use(cors());
@@ -37,6 +38,7 @@ app.get('/admin.html', (req, res) => res.sendFile(fileURLToPath(new URL('../admi
 
 const PORT = process.env.PORT || 3001;
 const pix = attachPixRoutes(app, { engine: SimEngine });
+const tapDemo = attachTapDemoRoutes(app, { engine: SimEngine, enabled: process.env.TAP_DEMO_ENABLED === 'true' });
 
 /**
  * Estimativa de custo/tempo antes de existir uma sessão — chamada toda vez
@@ -69,5 +71,5 @@ const httpServer = app.listen(PORT, () => {
 });
 
 const authorization = new MqttAuthorization();
-attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, authorization, pix);
+attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, authorization, pix, tapDemo);
 console.log(`Motor de simulação ativo — WebSocket em ws://localhost:${PORT}/ws`);

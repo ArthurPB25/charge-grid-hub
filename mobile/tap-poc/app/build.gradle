@@ -1,0 +1,14 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'br.com.chargegrid.taptest'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'br.com.chargegrid.taptest'
+        minSdk 30
+        targetSdk 35
+        versionCode 4
+        versionName '0.4'
+    }
+    // InfiniteTap requires developer options disabled on the physical phone.
+    buildTypes { debug { debuggable false } }
+}

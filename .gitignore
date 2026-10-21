@@ -4,3 +4,9 @@ node_modules/
 .DS_Store
 server/storage/
 tmp/
+.gradle/
+**/build/
+local.properties
+*.keystore
+*.jks
+*.apk

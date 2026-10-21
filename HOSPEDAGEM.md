@@ -8,6 +8,18 @@ O mesmo serviço entrega `/`, `/admin.html`, API e WebSocket `/ws`.
 O navegador usa HTTPS e WSS automaticamente. O broker MQTT permanece
 `wss://broker.emqx.io:8084/mqtt`.
 
+O Blueprint habilita `TAP_DEMO_ENABLED=true` para a apresentação do grupo.
+Esse modo continua usando retorno local do InfiniteTap, sem verificação bancária.
+Em um serviço existente, confira essa variável no painel: enviar o YAML ao GitHub
+não altera automaticamente configurações de serviços que não usam Blueprint.
+No app Android v0.4, use a URL HTTPS do serviço Render como endereço do servidor,
+sem caminho ou barra final. A chave de recuperação é salva antes da conexão;
+se a resposta se perder, repita Conectar com a mesma conta, endereço e código.
+
+`AI_PROVIDER=rules` serve relatórios factuais e PDF sem depender do Ollama local
+do computador. Um Ollama no PC da Juliana não fica disponível automaticamente
+dentro do servidor Render.
+
 No painel do Render, configure `MP_ACCESS_TOKEN` como variável secreta caso
 vá testar Pix. `MP_SANDBOX=true` mantém o modo de teste. Não coloque tokens
 no GitHub. Sem token, o site funciona, mas a criação de Pix fica indisponível.

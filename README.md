@@ -121,6 +121,13 @@ inclui o servidor completo com histórico separado, redistribuição, concorrên
 cancelamentos, entradas inválidas, datas, persistência e relatórios/PDF.
 Veja [AUDITORIA.md](AUDITORIA.md) para resultados e limites da revisão.
 
+## Teste de cartão por aproximação no celular
+
+Há um modo de apresentação com Android + InfiniteTap: R$ 1,00 por pedido e
+liberação automática da sessão pelo retorno local do app. É uma heurística de
+demonstração do grupo, sem consulta bancária independente, desativada por padrão.
+Ative `TAP_DEMO_ENABLED=true` e siga [INFINITETAP-APRESENTACAO.md](INFINITETAP-APRESENTACAO.md).
+
 ## Equipe
 
 | Nome | RM |

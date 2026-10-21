@@ -97,7 +97,7 @@ class AdminDashboard {
           <td>${inicio} - ${fim}</td>
           <td>${s.energyGridKWh.toFixed(1)} kWh</td>
           <td>${window.PricingEngine.formatCurrency(s.cost)}</td>
-          <td>${s.paymentMethod === 'pix' ? 'Pix informado pelo totem' : 'Demonstração · sem cobrança'}</td>
+          <td>${s.paymentMethod === 'tap-demo' ? 'InfiniteTap · R$ 1,00 · retorno local (demo)' : s.paymentMethod === 'pix' ? 'Pix informado pelo totem' : 'Demonstração · sem cobrança'}</td>
           <td><span class="badge success">concluída</span></td>
         </tr>
       `;

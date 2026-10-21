@@ -13,3 +13,7 @@ services:
         value: production
       - key: MP_SANDBOX
         value: "true"
+      - key: TAP_DEMO_ENABLED
+        value: "true"
+      - key: AI_PROVIDER
+        value: rules

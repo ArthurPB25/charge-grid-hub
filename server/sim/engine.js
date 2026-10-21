@@ -163,7 +163,8 @@ const SimEngine = {
     });
     session.id = `TOT-${randomUUID()}`;
     session.actualStartedAt = new Date().toISOString();
-    session.paymentMethod = config.paymentMethod === 'pix' ? 'pix' : 'demo';
+    session.paymentMethod = ['pix', 'tap-demo'].includes(config.paymentMethod) ? config.paymentMethod : 'demo';
+    if (session.paymentMethod === 'tap-demo') { session.paymentAmount = 1; session.paymentEvidence = 'local-callback-demo'; }
 
     SiteModel.addSession(session);
     this.userSession = session;
@@ -366,6 +367,8 @@ const SimEngine = {
       actualStartedAt: session.actualStartedAt,
       actualFinishedAt: session.actualFinishedAt,
       paymentMethod: session.paymentMethod || 'demo',
+      paymentAmount: session.paymentAmount,
+      paymentEvidence: session.paymentEvidence,
       socStart: session.socStart,
       soc: session.soc,
       socTarget: session.socTarget,
