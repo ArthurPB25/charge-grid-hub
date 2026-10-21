@@ -202,11 +202,16 @@
               <strong id="method-summary-vehicle">--</strong>
             </div>
             <div class="summary-row">
-              <span class="text-secondary">Valor Estimado</span>
+              <span class="text-secondary">Custo estimado da energia</span>
               <strong class="text-primary" id="method-summary-cost">--</strong>
             </div>
           </div>
 
+          <p class="pending-text">Apresentação do grupo: Pix e cartão cobram R$ 1,00. O custo estimado da energia é separado.</p>
+          <div id="pix-payer-fields" hidden style="width:100%;max-width:400px">
+            <label for="pix-payer-email">E-mail do pagador (enviado ao Mercado Pago para gerar o Pix)</label>
+            <input id="pix-payer-email" type="email" autocomplete="email" maxlength="254" placeholder="seu@email.com" style="width:100%;padding:12px;margin-top:8px">
+          </div>
           <button class="btn btn-primary" style="width: 100%; max-width: 400px;" id="btn-confirm-method" disabled>Confirmar Pagamento</button>
           <button class="btn btn-outline" style="width: 100%; max-width: 400px;" id="btn-cancel-method">Cancelar</button>
         </div>
@@ -310,7 +315,7 @@
               <button class="btn btn-outline" id="btn-copiar-pix">Copiar</button>
             </div>
             <div class="pix-valor">
-              Valor: <strong id="pix-valor">—</strong>
+              Cobrança da apresentação: <strong id="pix-valor">—</strong>
             </div>
             <div class="pix-status" id="pix-status">Aguardando pagamento…</div>
           </div>

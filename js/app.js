@@ -141,6 +141,7 @@ window.App = {
         document.querySelectorAll('.payment-method-card').forEach(c => c.classList.remove('selected'));
         e.currentTarget.classList.add('selected');
         window.PaymentController.selectMethod(e.currentTarget.dataset.method);
+        document.getElementById('pix-payer-fields').hidden = e.currentTarget.dataset.method !== 'pix';
         const btn = document.getElementById('btn-confirm-method');
         if (btn) btn.disabled = !this._paymentReady;
       });
@@ -423,6 +424,7 @@ window.App = {
   returnToStations(message) {
     this.cancelAuthorization();
     this.cancelarPix();
+    document.getElementById('pix-payer-email').value = '';
     window.PaymentController.cancelPayment();
     window.StationManager.selectedStationId = null;
     window.ChargingSimulator.sessionId = null;
@@ -574,6 +576,9 @@ window.App = {
   async initPaymentScreen() {
     const request = this._paymentRequest = (this._paymentRequest || 0) + 1;
     this._paymentReady = false;
+    document.getElementById('pix-payer-fields').hidden = true;
+    document.getElementById('pix-payer-email').value = '';
+    document.getElementById('pix-payer-email').setCustomValidity?.('');
     this._pixRequestKey = window.PaymentController.createRequestId();
     window.PaymentController.cancelPayment();
     const station = window.StationManager.getSelectedStation();
@@ -626,6 +631,13 @@ window.App = {
    */
   async startRealPix() {
     if (this._pixInFlight || !window.PaymentController.orderData?.estimate) return;
+    const emailInput = document.getElementById('pix-payer-email');
+    const email = (emailInput.value || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      emailInput.setCustomValidity?.('Informe o e-mail do pagador para gerar o Pix.');
+      emailInput.reportValidity?.(); emailInput.focus?.(); return;
+    }
+    emailInput.setCustomValidity?.('');
     this._pixInFlight = true;
     const generation = this._pixGeneration = (this._pixGeneration || 0) + 1;
     this._pararPollingPix?.();
@@ -634,15 +646,14 @@ window.App = {
     document.getElementById('pix-content').style.display = 'none';
     document.getElementById('pix-erro').style.display = 'none';
 
-    // Mesma estimativa já calculada e mostrada na tela de método de
-    // pagamento — evita um novo round-trip ao servidor para o mesmo número.
-    const estimativa = window.PaymentController.orderData ? window.PaymentController.orderData.estimate : null;
-    const valor = Number(estimativa.estimatedCost.toFixed(2));
+    // Cobrança simbólica fixa; a estimativa de energia permanece separada.
+    const valor = 1;
     const station = window.StationManager.getSelectedStation();
 
     try {
       const cobranca = await window.PixClient.criarCobranca({
         valor: valor,
+        email,
         descricao: `ChargeGrid Hub — ${station ? station.name : 'recarga'}`,
         requestId: this._pixRequestKey,
         checkout: { stationId: station.id, vehicleId: this.selectedVehicle.id, startSoc: this.arrivalSoc, targetSoc: this.targetSoc }
@@ -658,7 +669,7 @@ window.App = {
       document.getElementById('pix-valor').textContent = window.PricingEngine.formatCurrency(cobranca.amount ?? valor);
 
       const statusEl = document.getElementById('pix-status');
-      statusEl.textContent = 'Aguardando pagamento…';
+      statusEl.textContent = cobranca.sandbox ? 'Pix de teste (sandbox): não representa pagamento real.' : 'Aguardando pagamento real de R$ 1,00…';
       statusEl.className = 'pix-status';
 
       this._pararPollingPix = window.PixClient.acompanharStatus(cobranca.paymentId, {

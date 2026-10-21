@@ -21,8 +21,14 @@ do computador. Um Ollama no PC da Juliana não fica disponível automaticamente
 dentro do servidor Render.
 
 No painel do Render, configure `MP_ACCESS_TOKEN` como variável secreta caso
-vá testar Pix. `MP_SANDBOX=true` mantém o modo de teste. Não coloque tokens
+vá receber Pix. `MP_SANDBOX=false` desativa os parâmetros de simulação; use
+credenciais de produção da conta recebedora. `MP_SANDBOX=true` mantém o modo de teste. Não coloque tokens
 no GitHub. Sem token, o site funciona, mas a criação de Pix fica indisponível.
+
+O Pix da apresentação cobra R$ 1,00, validado pelo servidor, e solicita o e-mail
+do pagador. A energia continua estimada separadamente. A liberação exige consulta
+aprovada ao Mercado Pago, correspondência de valor e pedido e uso único; não
+depende de um LIGAR manual. Veja [PIX-APRESENTACAO.md](PIX-APRESENTACAO.md).
 
 Para os registros importados do SEMS, adicione o conteúdo do arquivo local
 `server/storage/sems-import.json` como Secret File `sems-import.json`,

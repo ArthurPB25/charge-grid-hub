@@ -67,3 +67,17 @@ test('Pix sem validador não é aceito como recarga paga', async t => {
   await command('start-session', { stationId: 2, vehicle: vehicles[0], paymentMethod: 'pix' }, m => m.type === 'authorization' && m.data.status === 'error');
   assert.equal(SiteModel.sessions.length, 0);
 });
+
+test('Pix verificado inicia automaticamente uma vez sem autorização MQTT', async t => {
+  let used = false;
+  const { command, authorization } = await fixture(t, { verify: async () => {
+    if (used) throw new Error('Pagamento já utilizado');
+    return (commit = true) => { if (used) throw new Error('Pagamento já utilizado'); if (commit) used = true; };
+  } });
+  const payload = { stationId: 2, vehicle: vehicles[0], startSoc: .2, targetSoc: .8, paymentMethod: 'pix', paymentId: 'test-approved' };
+  const response = await command('start-session', payload, m => m.type === 'authorization' && m.data.status === 'approved');
+  assert.ok(response.data.sessionId); assert.equal(used, true);
+  assert.equal(authorization.pending, null); assert.equal(SiteModel.sessions.length, 1);
+  await command('start-session', payload, m => m.type === 'authorization' && m.data.status === 'error');
+  assert.equal(SiteModel.sessions.length, 1);
+});

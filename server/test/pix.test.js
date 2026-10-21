@@ -32,7 +32,7 @@ test('Pix recusa valores, checkout, e-mail e identificador inválidos antes de c
   assert.equal(calls, 0);
 });
 
-test('duplo clique e retry usam uma cobrança; o valor vem da estimativa do servidor', async t => {
+test('duplo clique e retry usam uma cobrança; servidor fixa R$1 independentemente da estimativa', async t => {
   let calls = 0; let request;
   const { create } = await fixture(t, async (url, options) => {
     calls++; request = options;
@@ -42,10 +42,10 @@ test('duplo clique e retry usam uma cobrança; o valor vem da estimativa do serv
   const results = await Promise.all([create(), create()]);
   const first = await results[0].json();
   assert.deepEqual(await results[1].json(), first);
-  assert.equal(first.amount, 12.35);
+  assert.equal(first.amount, 1);
   assert.equal(first.paymentId, 'ORDER-TEST');
   assert.equal(calls, 1);
-  assert.equal(JSON.parse(request.body).total_amount, '12.35');
+  assert.equal(JSON.parse(request.body).total_amount, '1.00');
   assert.equal(request.headers['X-Idempotency-Key'], 'test-request-00000001');
   assert.equal((await create({ ...valid, valor: 30 })).status, 409);
   assert.equal(calls, 1);
@@ -67,13 +67,13 @@ test('erro de rede preserva a idempotência para retry e não expõe detalhes in
 });
 
 test('Pix só libera a recarga correta, paga no valor correto e uma única vez', async t => {
-  let status = 'action_required'; let total = '12.35';
+  let status = 'action_required'; let total = '1.00';
   const { gateway, create, url } = await fixture(t, async path => ({ ok: true, json: async () => provider(path.endsWith('/ORDER-TEST') ? { status, status_detail: 'accredited', total_amount: total } : {}) }));
   await create();
   await assert.rejects(gateway.verify('ORDER-TEST', session), /ainda não confirmado/);
-  status = 'processed'; total = '1.00';
+  status = 'processed'; total = '12.35';
   await assert.rejects(gateway.verify('ORDER-TEST', session), /ainda não confirmado/);
-  total = '12.35';
+  total = '1.00';
   await assert.rejects(gateway.verify('ORDER-TEST', { ...session, stationId: 3 }), /não corresponde/);
   const consume = await gateway.verify('ORDER-TEST', session);
   consume(false); consume();
@@ -92,4 +92,20 @@ test('ausência de token, recusa e QR incompleto produzem erro explícito', asyn
   assert.equal(normalizePixStatus({ status: 'expired' }), 'cancelled');
   assert.equal(normalizePixStatus({ status: 'processed', status_detail: 'accredited' }), 'approved');
   assert.equal(normalizePixStatus({ status: 'processed' }), 'pending');
+});
+
+test('Pix produção usa R$1, e-mail informado e não envia APRO de sandbox', async t => {
+  let sent;
+  const f = await fixture(t, async (url, options) => {
+    sent = JSON.parse(options.body); return { ok: true, json: async () => provider() };
+  }, { MP_ACCESS_TOKEN: 'FAKE-ONLY-FOR-TEST', MP_SANDBOX: 'false' });
+  assert.equal((await f.create()).status, 400);
+  assert.equal(sent, undefined);
+  const r = await f.create({ ...valid, valor: 9999, email: 'payer@example.com' });
+  assert.equal(r.status, 200); const data = await r.json();
+  assert.equal(data.amount, 1); assert.equal(data.sandbox, false);
+  assert.equal(sent.total_amount, '1.00');
+  assert.equal(sent.transactions.payments[0].amount, '1.00');
+  assert.deepEqual(sent.payer, { email: 'payer@example.com' });
+  assert.equal((await f.create({ valor: 1, email: 'payer@example.com' }, 'missing-checkout-0001')).status, 400);
 });

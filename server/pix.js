@@ -11,6 +11,7 @@ const failure = (message, status = 502) => Object.assign(new Error(message), { s
 export function attachPixRoutes(app, { engine, config = process.env, fetchImpl = fetch, now = () => Date.now() }) {
   const token = config.MP_ACCESS_TOKEN;
   const configured = Boolean(token) && !token.includes('substitua-pelo-seu-token');
+  const sandbox = config.MP_SANDBOX !== 'false';
   const requests = new Map();
   const payments = new Map();
   async function call(path, options = {}) {
@@ -33,6 +34,8 @@ export function attachPixRoutes(app, { engine, config = process.env, fetchImpl =
           (email != null && (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))) {
         throw failure('Informe um valor válido em reais e um e-mail válido, se fornecido.', 400);
       }
+      if (!sandbox && !email) throw failure('Informe o e-mail do pagador para gerar o Pix real.', 400);
+      if (!checkout || typeof checkout !== 'object' || Array.isArray(checkout)) throw failure('Selecione uma estação e um veículo para o Pix.', 400);
       const key = req.get('Idempotency-Key');
       if (typeof key !== 'string' || !/^[\w-]{16,100}$/.test(key)) throw failure('Identificador da solicitação inválido.', 400);
       const fingerprint = JSON.stringify({ valor, email: email || null, checkout: checkoutKey(checkout) });
@@ -44,14 +47,13 @@ export function attachPixRoutes(app, { engine, config = process.env, fetchImpl =
           if (saved.result) payments.delete(saved.result.paymentId);
         }
         if (requests.size >= 500) throw failure('Limite temporário de cobranças atingido. Tente novamente mais tarde.', 503);
-        let amount = valor;
+        const amount = 1;
         if (checkout != null) {
           if (typeof checkout !== 'object' || !Number.isFinite(checkout.startSoc) || !Number.isFinite(checkout.targetSoc)) throw failure('Dados da recarga inválidos.', 400);
           if (engine.snapshot && engine.snapshot().evses.find(e => e.stationId === checkout.stationId)?.status !== 'Available') throw failure('A estação não está disponível para esta recarga.', 409);
           const estimate = engine.estimate({ stationId: checkout.stationId, vehicleId: checkout.vehicleId,
             batteryLevel: checkout.startSoc * 100, targetSoc: checkout.targetSoc });
           if (!estimate || estimate.estimatedCost < .01) throw failure('Não foi possível estimar esta recarga.', 400);
-          amount = Number(estimate.estimatedCost.toFixed(2));
         }
         entry = { fingerprint, amount, checkout: checkout ? structuredClone(checkout) : null, createdAt: now(), result: null, pending: null, used: false };
         requests.set(key, entry);
@@ -61,13 +63,13 @@ export function attachPixRoutes(app, { engine, config = process.env, fetchImpl =
           const amount = entry.amount.toFixed(2);
           entry.pending = call('', { method: 'POST', headers: { 'X-Idempotency-Key': key }, body: JSON.stringify({
             type: 'online', external_reference: `chargegrid-${key}`, total_amount: amount,
-            payer: { email: email || 'motorista@chargegrid.demo', ...(config.MP_SANDBOX !== 'false' ? { first_name: 'APRO' } : {}) },
+            payer: { email: email || 'test_payer@example.com', ...(sandbox ? { first_name: 'APRO' } : {}) },
             transactions: { payments: [{ amount, payment_method: { id: 'pix', type: 'bank_transfer' } }] }
           }) }).then(data => {
             const pix = data.transactions?.payments?.[0]?.payment_method;
             if (!data.id || !pix?.qr_code || !pix?.qr_code_base64) throw failure('Resposta do Mercado Pago sem QR Code válido.');
             entry.result = { paymentId: String(data.id), status: normalizePixStatus(data), amount: entry.amount,
-              qrCode: pix.qr_code, qrCodeBase64: pix.qr_code_base64 };
+              qrCode: pix.qr_code, qrCodeBase64: pix.qr_code_base64, sandbox };
             payments.set(entry.result.paymentId, entry);
             return entry.result;
           }).finally(() => { entry.pending = null; });
@@ -84,7 +86,7 @@ export function attachPixRoutes(app, { engine, config = process.env, fetchImpl =
       res.json({ status: normalizePixStatus(data), statusDetail: data.status_detail });
     } catch (error) { res.status(error.status || 502).json({ erro: error.message }); }
   });
-  app.get('/api/pix/saude', (req, res) => res.json({ ok: true, tokenConfigurado: configured }));
+  app.get('/api/pix/saude', (req, res) => res.json({ ok: true, tokenConfigurado: configured, sandbox, amountCents: 100 }));
   return {
     async verify(paymentId, session) {
       const entry = payments.get(paymentId);
