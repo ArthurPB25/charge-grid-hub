@@ -13,7 +13,7 @@ O painel **Assistente de Operação** apresenta indicadores, gráficos e próxim
 
 ## Consumo e falhas
 
-O padrão permite **2 tentativas novas por dia**, no fuso de São Paulo, com uma chamada de cada vez, resposta curta (até 180 tokens de saída) e tempo máximo de 12 segundos. Não há repetição automática. Falhas e timeouts contam como tentativa; erros geram pausa de 5 minutos e resposta 429 do provedor gera pausa de 1 hora. A análise por regras permanece disponível.
+O padrão permite **5 tentativas novas por dia**, no fuso de São Paulo, com uma chamada de cada vez, resposta curta (até 180 tokens de saída) e tempo máximo de 12 segundos. Não há repetição automática. Falhas e timeouts contam como tentativa; erros geram pausa de 5 minutos e resposta 429 do provedor gera pausa de 1 hora. A análise por regras permanece disponível.
 
 O contador do aplicativo **não é o saldo da conta Ollama** e não mede uso de outros aplicativos. O plano gratuito e os modelos disponíveis dependem do provedor. O sistema não compra créditos nem ativa recarga automática.
 
@@ -28,7 +28,7 @@ AI_PROVIDER=ollama-cloud
 OLLAMA_API_KEY=<chave da conta Ollama>
 OLLAMA_CLOUD_MODEL=gemma4:31b
 AI_ADMIN_KEY=<código aleatório exclusivo com ao menos 16 caracteres>
-AI_DAILY_CALL_LIMIT=2
+AI_DAILY_CALL_LIMIT=5
 AI_CACHE_MINUTES=60
 ```
 

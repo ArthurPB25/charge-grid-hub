@@ -17,7 +17,7 @@ export class CloudAdvisor {
   constructor({config={},fetchImpl=fetch,now=()=>new Date(),file=null}={}) {
     this.key=config.OLLAMA_API_KEY || ''; this.access=config.AI_ADMIN_KEY || '';
     this.model=config.OLLAMA_CLOUD_MODEL || 'gemma4:31b';
-    this.limit=integer(config.AI_DAILY_CALL_LIMIT,2,0,10);
+    this.limit=integer(config.AI_DAILY_CALL_LIMIT,5,0,10);
     this.ttl=integer(config.AI_CACHE_MINUTES,60,15,1440)*60000;
     this.fetch=fetchImpl; this.now=now; this.file=file; this.cache=new Map(); this.cooldown=0; this.busy=false;
     this.ledger={}; this.storageOk=true;
