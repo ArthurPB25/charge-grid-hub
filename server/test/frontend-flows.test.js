@@ -19,7 +19,6 @@ function harness() {
   const app = window.App;
   app.selectedVehicle = { id: 'dolphin', batteryCapacity: 44.9, range: 291, year: 2025, brand: 'BYD', model: 'Dolphin' };
   app.arrivalSoc = .2; app.targetSoc = .8;
-  get('pix-payer-email').value = 'payer@example.com';
   app._pixRequestKey = randomUUID();
   window.PaymentController.startPayment({ estimate: { estimatedCost: 20 } });
   return { app, window, nodes, get, context };
@@ -37,21 +36,22 @@ test('cancelar Pix durante a criação ignora a resposta atrasada e não inicia 
   assert.equal(h.get('pix-content').style.display, 'none');
 });
 
-test('Pix envia R$1 e e-mail; estimativa da energia permanece separada', async () => {
+test('Pix envia R$1 sem solicitar e-mail; estimativa permanece separada', async () => {
   const h = harness(); let sent;
   h.window.PixClient = { criarCobranca: async value => { sent = value; return { paymentId: 'fixed', amount: 1, sandbox: false, qrCodeBase64: 'test' }; }, acompanharStatus: () => () => {} };
   await h.app.startRealPix();
-  assert.equal(sent.valor, 1); assert.equal(sent.email, 'payer@example.com');
+  assert.equal(sent.valor, 1); assert.equal(sent.email, undefined);
   assert.equal(h.window.PaymentController.orderData.estimate.estimatedCost, 20);
   assert.equal(h.get('pix-valor').textContent, '1');
   assert.match(h.get('pix-status').textContent, /real de R\$ 1,00/);
 });
 
-test('Pix não solicita cobrança sem e-mail válido', async () => {
+test('Pix sandbox exibe QR sem formulário e identifica o teste', async () => {
   const h = harness(); let calls = 0;
-  h.window.PixClient = { criarCobranca: async () => { calls++; } };
-  for (const email of ['', 'invalido']) { h.get('pix-payer-email').value = email; await h.app.startRealPix(); }
-  assert.equal(calls, 0);
+  h.window.PixClient = { criarCobranca: async () => { calls++; return { paymentId:'sandbox', amount:1, sandbox:true,qrCodeBase64:'test' }; }, acompanharStatus:()=>()=>{} };
+  await h.app.startRealPix();
+  assert.equal(calls, 1); assert.equal(h.get('pix-content').style.display, 'flex');
+  assert.match(h.get('pix-status').textContent, /teste.*sandbox/);
 });
 
 test('clique repetido em Pix não duplica a requisição e não usa valor fictício sem estimativa', async () => {

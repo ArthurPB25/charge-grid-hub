@@ -141,7 +141,6 @@ window.App = {
         document.querySelectorAll('.payment-method-card').forEach(c => c.classList.remove('selected'));
         e.currentTarget.classList.add('selected');
         window.PaymentController.selectMethod(e.currentTarget.dataset.method);
-        document.getElementById('pix-payer-fields').hidden = e.currentTarget.dataset.method !== 'pix';
         const btn = document.getElementById('btn-confirm-method');
         if (btn) btn.disabled = !this._paymentReady;
       });
@@ -424,7 +423,6 @@ window.App = {
   returnToStations(message) {
     this.cancelAuthorization();
     this.cancelarPix();
-    document.getElementById('pix-payer-email').value = '';
     window.PaymentController.cancelPayment();
     window.StationManager.selectedStationId = null;
     window.ChargingSimulator.sessionId = null;
@@ -576,9 +574,6 @@ window.App = {
   async initPaymentScreen() {
     const request = this._paymentRequest = (this._paymentRequest || 0) + 1;
     this._paymentReady = false;
-    document.getElementById('pix-payer-fields').hidden = true;
-    document.getElementById('pix-payer-email').value = '';
-    document.getElementById('pix-payer-email').setCustomValidity?.('');
     this._pixRequestKey = window.PaymentController.createRequestId();
     window.PaymentController.cancelPayment();
     const station = window.StationManager.getSelectedStation();
@@ -631,13 +626,6 @@ window.App = {
    */
   async startRealPix() {
     if (this._pixInFlight || !window.PaymentController.orderData?.estimate) return;
-    const emailInput = document.getElementById('pix-payer-email');
-    const email = (emailInput.value || '').trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      emailInput.setCustomValidity?.('Informe o e-mail do pagador para gerar o Pix.');
-      emailInput.reportValidity?.(); emailInput.focus?.(); return;
-    }
-    emailInput.setCustomValidity?.('');
     this._pixInFlight = true;
     const generation = this._pixGeneration = (this._pixGeneration || 0) + 1;
     this._pararPollingPix?.();
@@ -653,7 +641,6 @@ window.App = {
     try {
       const cobranca = await window.PixClient.criarCobranca({
         valor: valor,
-        email,
         descricao: `ChargeGrid Hub — ${station ? station.name : 'recarga'}`,
         requestId: this._pixRequestKey,
         checkout: { stationId: station.id, vehicleId: this.selectedVehicle.id, startSoc: this.arrivalSoc, targetSoc: this.targetSoc }
@@ -676,7 +663,7 @@ window.App = {
         onStatus: (status) => {
           if (generation !== this._pixGeneration) return false;
           if (status === 'approved') {
-            statusEl.textContent = 'Pagamento aprovado!';
+            statusEl.textContent = cobranca.sandbox ? 'Pagamento de teste aprovado — sem transferência real.' : 'Pagamento aprovado!';
             statusEl.className = 'pix-status aprovado';
             this.startMonitoring();
             return false;
