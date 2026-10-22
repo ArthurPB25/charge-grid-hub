@@ -99,7 +99,7 @@ export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, au
           const startVerifiedSession = () => {
             const evse = SiteModel.getEvseByStation(p.stationId);
             if (revision !== requestRevision || ws.readyState !== ws.OPEN || evse.status !== 'Available') throw new Error('Estação indisponível');
-            // Defina o dono antes de o motor emitir o comando de relé.
+            // Defina o dono antes de emitir LIGAR, após a autorização MQTT.
             if (evse.stationId === 1) userSessionOwner = ws;
             consumePayment?.(false);
             const session = SimEngine.startUserSession(config);
@@ -109,10 +109,7 @@ export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, au
             // Inicializa a tela antes do próximo tick, inclusive se DESLIGAR vier logo em seguida.
             broadcast({ type: 'snapshot', data: SimEngine.snapshot() });
           };
-          if (p.paymentMethod === 'pix') {
-            try { startVerifiedSession(); notifyAuthorization({ status: 'approved', stationId: p.stationId }); }
-            catch { notifyAuthorization({ status: 'error', message: 'Não foi possível iniciar a recarga. Confira a estação e procure o operador; não pague novamente.' }); }
-          } else authorization.request(ws, p.stationId, notifyAuthorization, startVerifiedSession);
+          authorization.request(ws, p.stationId, notifyAuthorization, startVerifiedSession);
           break;
         }
         case 'cancel-authorization':

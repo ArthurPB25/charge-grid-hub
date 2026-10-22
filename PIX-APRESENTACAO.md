@@ -8,7 +8,8 @@ O pagador informa seu próprio e-mail, enviado ao Mercado Pago para gerar o Pix.
 No modo real ele é obrigatório; não é substituído por endereço fictício.
 QR Code e copia e cola vêm do provedor. O backend confirma a aprovação, o valor
 de R$ 1,00 e a correspondência da recarga antes de iniciar uma sessão uma única
-vez. Pix pendente ou recusado não libera. A liberação não espera MQTT manual.
+vez. Pix pendente ou recusado não libera. Após confirmar o Pix, a liberação
+aguarda LIGAR por MQTT, restaurando o comportamento original da ponte ESP32.
 
 ## Configuração
 
