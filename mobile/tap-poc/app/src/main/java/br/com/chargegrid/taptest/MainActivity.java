@@ -24,10 +24,25 @@ public class MainActivity extends Activity {
     private EditText serverAddress, orderCode;
     private Button connect, retry;
     private boolean networking = false;
+    private final android.os.Handler receiver = new android.os.Handler(android.os.Looper.getMainLooper());
+    private boolean visible = false, listening = false;
+    private EditText terminalSecret;
+    private Button terminalToggle;
+    private LinearLayout settings;
+    private Button settingsButton, clear;
+    private final Runnable receiveNext = () -> pollTerminal();
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
         prefs = getSharedPreferences("tap-test", MODE_PRIVATE);
+        if (TerminalConfig.CONFIGURED) {
+            // Provisioning belongs to the establishment, never to the customer.
+            // Preserve any payment being reconciled from an older installation.
+            SharedPreferences.Editor setup = prefs.edit().putString("terminal_secret", TerminalConfig.KEY)
+                .putString("terminal_server", TerminalConfig.SERVER).putString("terminal_handle", TerminalConfig.HANDLE);
+            if (!prefs.contains("order")) setup.putString("server", TerminalConfig.SERVER).putString("handle", TerminalConfig.HANDLE);
+            if (!setup.commit()) throw new IllegalStateException("Não foi possível salvar o terminal.");
+        }
         ScrollView scroll = new ScrollView(this);
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -35,9 +50,33 @@ public class MainActivity extends Activity {
         layout.setPadding(pad, pad * 2, pad, pad);
         scroll.addView(layout);
         setContentView(scroll);
+        android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xffedf9f5, 0xfff4f7fb});
+        scroll.setBackground(background);
         TextView title = new TextView(this);
-        title.setText("ChargeGrid · InfiniteTap v0.4"); title.setTextSize(24); layout.addView(title);
-        Button newOrder = new Button(this); newOrder.setText("Novo pedido / digitar código"); layout.addView(newOrder);
+        title.setText("ChargeGrid"); title.setTextColor(0xff126b51); title.setTypeface(null, android.graphics.Typeface.BOLD); title.setTextSize(32); layout.addView(title);
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Energia para seguir em frente"); subtitle.setTextColor(0xff425568); subtitle.setTextSize(17); layout.addView(subtitle);
+        status = new TextView(this); status.setTextSize(22);
+        status.setPadding(0, pad, 0, pad); layout.addView(status);
+        start = new Button(this); start.setText("Pagar R$ 1,00"); layout.addView(start);
+        retry = new Button(this); retry.setText("Reenviar confirmação"); layout.addView(retry);
+        retry.setOnClickListener(v -> sendResult());
+        clear = new Button(this); clear.setText("Encerrar acompanhamento"); layout.addView(clear);
+        settingsButton = new Button(this); settingsButton.setText("Configurar terminal"); layout.addView(settingsButton);
+        settings = new LinearLayout(this); settings.setOrientation(LinearLayout.VERTICAL);
+        settings.setVisibility(android.view.View.GONE); layout.addView(settings);
+        settingsButton.setOnClickListener(v -> {
+            boolean opening = settings.getVisibility() != android.view.View.VISIBLE;
+            settings.setVisibility(opening ? android.view.View.VISIBLE : android.view.View.GONE);
+            settingsButton.setText(opening ? "Fechar configurações" : "Configurações");
+        });
+        title.setOnLongClickListener(v -> {
+            settingsButton.setVisibility(android.view.View.VISIBLE);
+            settings.setVisibility(android.view.View.VISIBLE); return true;
+        });
+        layout = settings;
+        Button newOrder = new Button(this); newOrder.setText("Conectar pedido manualmente"); layout.addView(newOrder);
         newOrder.setOnClickListener(v -> {
             if (networking) { status.setText("Aguarde a comunicação atual terminar."); return; }
             if (prefs.contains("release_payload")) {
@@ -50,7 +89,7 @@ public class MainActivity extends Activity {
                 .setPositiveButton("Conferi · Digitar novo código", (d,w) -> { resetOrder(); focusCode(); }).show();
         });
         TextView copy = new TextView(this);
-        copy.setText("Apresentação do grupo · R$ 1,00. Cobrança real com taxas; liberação pelo retorno local, sem consulta bancária independente.\nPreencha os três campos abaixo e conecte o pedido antes de pagar.");
+        copy.setText("Configuração do estabelecimento · v0.8\nO pagamento de R$ 1,00 é real. Confirmação por retorno local do InfiniteTap.");
         layout.addView(copy);
         label(layout, "1. InfiniteTag da conta, sem $");
         handle = new EditText(this); handle.setSingleLine(true); handle.setHint("Ex.: minha_conta");
@@ -59,7 +98,7 @@ public class MainActivity extends Activity {
         label(layout, "2. Endereço do servidor");
         serverAddress = new EditText(this); serverAddress.setSingleLine(true); serverAddress.setHint("http://IP-DO-COMPUTADOR:3002");
         serverAddress.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
-        serverAddress.setText(prefs.getString("server", "")); layout.addView(serverAddress);
+        serverAddress.setText(prefs.getString("terminal_server", prefs.getString("server", "https://charge-grid-hub.onrender.com"))); layout.addView(serverAddress);
         label(layout, "3. Código do pedido mostrado no totem");
         orderCode = new EditText(this); orderCode.setSingleLine(true); orderCode.setHint("Ex.: A1B2C3D4");
         orderCode.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -68,15 +107,17 @@ public class MainActivity extends Activity {
         orderCode.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
         orderCode.setMinHeight((int)(48 * getResources().getDisplayMetrics().density)); layout.addView(orderCode);
         connect = new Button(this); connect.setText("Conectar pedido do totem"); layout.addView(connect);
+        label(layout, "Celular fixo do estabelecimento (configurar uma vez)");
+        terminalSecret = new EditText(this); terminalSecret.setSingleLine(true);
+        terminalSecret.setHint("Chave do celular fixo fornecida pelo operador");
+        terminalSecret.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        terminalSecret.setText(prefs.getString("terminal_secret", "")); layout.addView(terminalSecret);
+        terminalToggle = new Button(this); terminalToggle.setText("Ativar recebimento automático"); layout.addView(terminalToggle);
+        terminalToggle.setOnClickListener(v -> toggleTerminal());
         methods = new RadioGroup(this);
         RadioButton debit = new RadioButton(this); debit.setId(101); debit.setText("Débito"); methods.addView(debit);
         RadioButton credit = new RadioButton(this); credit.setId(102); credit.setText("Crédito à vista"); methods.addView(credit);
         methods.check(101); layout.addView(methods);
-        start = new Button(this); start.setText("Preparar teste de R$ 1,00"); layout.addView(start);
-        status = new TextView(this); status.setTextIsSelectable(true); layout.addView(status);
-        retry = new Button(this); retry.setText("Reenviar retorno ao totem (sem nova cobrança)"); layout.addView(retry);
-        retry.setOnClickListener(v -> sendResult());
-        Button clear = new Button(this); clear.setText("Conferi no InfinitePay · Encerrar teste"); layout.addView(clear);
         clear.setOnClickListener(v -> { if (networking) return; new AlertDialog.Builder(this).setTitle("Encerrar acompanhamento?")
             .setMessage("Confira a transação no InfinitePay antes de encerrar. Este botão não cancela nem estorna um pagamento e não libera recarga.")
             .setNegativeButton("Voltar", null).setPositiveButton("Encerrar acompanhamento", (d,w) -> {
@@ -86,6 +127,102 @@ public class MainActivity extends Activity {
         start.setOnClickListener(v -> prepare());
         connect.setOnClickListener(v -> claim());
         refresh(); receive(getIntent());
+        if (prefs.contains("terminal_secret") && prefs.contains("terminal_handle") && prefs.contains("terminal_server")) {
+            if (!prefs.contains("order")) handle.setText(prefs.getString("terminal_handle", ""));
+            toggleTerminal();
+        }
+    }
+
+    @Override protected void onResume() {
+        super.onResume(); visible = true;
+        receiver.removeCallbacks(receiveNext); receiver.postDelayed(receiveNext, 1500);
+    }
+    @Override protected void onPause() {
+        visible = false; receiver.removeCallbacks(receiveNext); super.onPause();
+    }
+    @Override protected void onDestroy() {
+        receiver.removeCallbacks(receiveNext); super.onDestroy();
+    }
+    private void scheduleTerminal() {
+        receiver.removeCallbacks(receiveNext);
+        if (visible && listening) receiver.postDelayed(receiveNext, 3000);
+    }
+    private void toggleTerminal() {
+        if (networking) return;
+        if (listening) {
+            listening = false; receiver.removeCallbacks(receiveNext);
+            getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            terminalToggle.setText("Ativar recebimento automático"); terminalSecret.setEnabled(true);
+            refreshButtons(); status.setText("Recebimento pausado."); return;
+        }
+        String base = serverAddress.getText().toString().trim().replaceAll("/+$", "");
+        String merchant = handle.getText().toString().trim();
+        String secret = terminalSecret.getText().toString().trim();
+        if (!validBase(base)) { serverAddress.setError("Informe o endereço do servidor sem caminhos."); return; }
+        if (!merchant.matches("[A-Za-z0-9_-]{1,100}")) { handle.setError("InfiniteTag sem $"); return; }
+        if (!secret.matches("[A-Fa-f0-9]{64}")) { terminalSecret.setError("Informe a chave de 64 caracteres do operador."); return; }
+        String device = prefs.getString("terminal_device", UUID.randomUUID().toString());
+        if (!prefs.edit().putString("terminal_device", device).putString("terminal_secret", secret)
+            .putString("terminal_server", base).putString("terminal_handle", merchant).commit()) {
+            status.setText("Não foi possível salvar a configuração do celular."); return;
+        }
+        listening = true; terminalSecret.setEnabled(false);
+        settings.setVisibility(android.view.View.GONE); settingsButton.setText("Configurações");
+        refreshButtons();
+        terminalToggle.setText("Pausar recebimento automático");
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (!prefs.contains("order")) status.setText("Aguardando pedido do totem…");
+        receiver.removeCallbacks(receiveNext); receiver.post(receiveNext);
+    }
+    private boolean validBase(String base) {
+        try {
+            java.net.URI parsed = new java.net.URI(base);
+            return java.util.Arrays.asList("http", "https").contains(parsed.getScheme()) && parsed.getHost() != null && parsed.getUserInfo() == null
+                && parsed.getQuery() == null && parsed.getFragment() == null && parsed.getPath().isEmpty();
+        } catch (Exception e) { return false; }
+    }
+    private void pollTerminal() {
+        if (!visible || !listening) return;
+        if (networking) { scheduleTerminal(); return; }
+        if (prefs.contains("release_payload")) { sendResult(); scheduleTerminal(); return; }
+        if (prefs.contains("order")) {
+            if (TerminalConfig.CONFIGURED && prefs.contains("phone_token") && !prefs.contains("launched") && !prefs.contains("result")) openTerminalPayment();
+            scheduleTerminal(); return;
+        }
+        final String base = prefs.getString("terminal_server", ""), merchant = prefs.getString("terminal_handle", "");
+        background(() -> {
+            JSONObject request = new JSONObject(); request.put("deviceKey", prefs.getString("terminal_device", "")); request.put("handle", merchant);
+            return post(base, "/api/tap-demo/terminal/next", request, null, prefs.getString("terminal_secret", ""));
+        }, response -> {
+            JSONObject order = response.optJSONObject("order");
+            if (order == null) { status.setText("Aguardando pedido do totem…"); return; }
+            acceptOrder(order, base, merchant);
+            if (prefs.getString("terminal_last_launched", "").equals(order.getString("id"))) {
+                prefs.edit().putBoolean("launched", true).apply(); refresh();
+                status.setText("Este pedido já abriu uma cobrança. Confira o InfinitePay e o operador; não abra outra.");
+                return;
+            }
+            // Fixed merchant terminal opens only the pending order, once.
+            // The customer completes the financial action in InfiniteTap.
+            openTerminalPayment();
+        });
+        scheduleTerminal();
+    }
+    private void openTerminalPayment() {
+        if (networking || prefs.contains("launched")) return;
+        final String base = prefs.getString("linked_server", ""), id = prefs.getString("order", ""), token = prefs.getString("phone_token", "");
+        background(() -> post(base, "/api/tap-demo/orders/" + id + "/ready", new JSONObject(), token), response -> {
+            if (!visible || !listening || !id.equals(prefs.getString("order", ""))) return;
+            launch(prefs.getString("handle", ""), prefs.getString("order_method", "debit"));
+        });
+    }
+    private void acceptOrder(JSONObject response, String base, String merchant) throws Exception {
+        if (response.getInt("amountCents") != 100 || !"pending".equals(response.getString("state"))) throw new Exception("Pedido indisponível");
+        if (!prefs.edit().putString("order", response.getString("id")).putString("phone_token", response.getString("token"))
+            .putString("handle", merchant).putString("server", base).putString("linked_server", base)
+            .putString("order_method", response.getString("method"))
+            .putString("order_label", "Estação " + response.getInt("stationId") + " · " + response.getString("vehicle") + " · R$ 1,00").commit()) throw new Exception("Falha ao salvar pedido");
+        refresh();
     }
 
     private void label(LinearLayout layout, String text) {
@@ -98,6 +235,7 @@ public class MainActivity extends Activity {
         setIntent(new Intent(this, MainActivity.class)); orderCode.setText(""); refresh();
     }
     private void focusCode() {
+        settings.setVisibility(android.view.View.VISIBLE); settingsButton.setText("Fechar configurações");
         orderCode.requestFocus();
         orderCode.post(() -> ((android.view.inputmethod.InputMethodManager)getSystemService(INPUT_METHOD_SERVICE))
             .showSoftInput(orderCode, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT));
@@ -133,7 +271,9 @@ public class MainActivity extends Activity {
             .appendQueryParameter("order_id", order).appendQueryParameter("result_url", callback.toString())
             .appendQueryParameter("app_client_referrer", "ChargeGridTapTeste").appendQueryParameter("handle", merchant);
         if ("credit".equals(method)) uri.appendQueryParameter("installments", "1");
-        prefs.edit().putString("order", order).putString("nonce", nonce).putString("handle", merchant).putBoolean("launched", true).apply();
+        SharedPreferences.Editor launchState = prefs.edit().putString("order", order).putString("nonce", nonce).putString("handle", merchant).putBoolean("launched", true);
+        if (listening) launchState.putString("terminal_last_launched", order);
+        if (!launchState.commit()) { status.setText("Não foi possível salvar a cobrança no celular. O InfinitePay não foi aberto."); return; }
         refresh();
         try { startActivity(new Intent(Intent.ACTION_VIEW, uri.build())); }
         catch (ActivityNotFoundException e) {
@@ -162,11 +302,11 @@ public class MainActivity extends Activity {
                 status.setText("Retorno de conta diferente ou sem identificação. Confira a conta no InfinitePay; nenhuma recarga foi liberada."); return;
             }
             JSONObject payload = new JSONObject(); payload.put("order_id", order); payload.put("handle", merchant);
-            StringBuilder message = new StringBuilder("Retorno local recebido · demonstração. Confira a transação no InfinitePay.\nPedido: " + order);
+            StringBuilder message = new StringBuilder("Retorno recebido. Confira o pagamento no InfinitePay.");
             // Do not persist CPF/CNPJ, card data, or the complete callback URI.
             for (String key : new String[]{"nsu", "aut", "card_brand", "warning", "error", "error_message", "error_code", "status", "success", "cancelled", "canceled"}) {
                 String value = single(uri, key);
-                if (value != null) { message.append("\n").append(key).append(": ").append(value); payload.put(key, value); }
+                if (value != null) payload.put(key, value);
             }
             prefs.edit().putString("result", message.toString()).apply(); refresh();
             if (prefs.contains("phone_token")) {
@@ -191,13 +331,14 @@ public class MainActivity extends Activity {
         if (pending) handle.setText(prefs.getString("handle", ""));
         if (prefs.contains("phone_token")) methods.check("credit".equals(prefs.getString("order_method", "debit")) ? 102 : 101);
         for (int i = 0; i < methods.getChildCount(); i++) methods.getChildAt(i).setEnabled(!pending && !networking);
-        start.setEnabled(!prefs.contains("launched") && !networking); handle.setEnabled(!pending);
+        start.setEnabled(!prefs.contains("launched") && !networking && (!listening || pending)); handle.setEnabled(!pending);
         connect.setEnabled(!pending && !networking); serverAddress.setEnabled(!pending && !networking); orderCode.setEnabled(!pending && !networking);
         retry.setVisibility(prefs.contains("release_payload") ? android.view.View.VISIBLE : android.view.View.GONE);
         retry.setEnabled(!networking);
         status.setText(prefs.getString("result", pending
-            ? "Pedido: " + prefs.getString("order", "") + "\n" + prefs.getString("order_label", "") + "\n" + (prefs.contains("launched") ? "Aguardando retorno. Não repita a cobrança sem conferir o InfinitePay." : "Conectado. Toque em Preparar teste para abrir o InfiniteTap.")
-            : "Nenhum teste em andamento. A cobrança só será aberta após sua confirmação."));
+            ? prefs.getString("order_label", "Pagamento de R$ 1,00") + "\n" + ("credit".equals(prefs.getString("order_method", "debit")) ? "Crédito à vista" : "Débito") + "\n\n" + (prefs.contains("launched") ? "Aguardando retorno do InfiniteTap…" : "Toque em pagar para continuar no InfiniteTap.")
+            : listening ? "Aguardando pedido do totem…" : "Configure este celular uma vez para receber os pedidos do totem."));
+        refreshButtons();
     }
 
     private interface Job { JSONObject run() throws Exception; }
@@ -210,21 +351,29 @@ public class MainActivity extends Activity {
                 JSONObject data = job.run();
                 runOnUiThread(() -> { networking = false; try { done.accept(data); } catch (Exception e) { status.setText("Resposta inesperada. Confira o pedido antes de repetir."); } refreshButtons(); });
             } catch (Exception e) {
-                runOnUiThread(() -> { networking = false; refreshButtons(); status.setText("Falha de conexão: " + e.getMessage() + "\nConfira o endereço do servidor e a rede. Se estava conectando o pedido, tente Conectar novamente com os mesmos dados para recuperar a tentativa. Se já pagou, reenvie apenas o retorno."); });
+                runOnUiThread(() -> { networking = false; refreshButtons(); status.setText("Não foi possível conectar. Confira a internet e as configurações.\n" + (prefs.contains("release_payload") ? "Se já pagou, toque em Reenviar confirmação." : e.getMessage())); });
             }
         }).start();
     }
     private void refreshButtons() {
-        start.setEnabled(!prefs.contains("launched") && !networking);
+        start.setEnabled(!prefs.contains("launched") && !networking && (!listening || prefs.contains("order")));
         connect.setEnabled(!prefs.contains("order") && !networking);
         retry.setVisibility(prefs.contains("release_payload") ? android.view.View.VISIBLE : android.view.View.GONE);
         retry.setEnabled(!networking);
+        start.setVisibility(!TerminalConfig.CONFIGURED && prefs.contains("phone_token") && !prefs.contains("launched") ? android.view.View.VISIBLE : android.view.View.GONE);
+        clear.setVisibility(prefs.contains("order") && prefs.contains("launched") ? android.view.View.VISIBLE : android.view.View.GONE);
+        settingsButton.setText(settings.getVisibility() == android.view.View.VISIBLE ? "Fechar configurações" : listening || prefs.contains("terminal_secret") ? "Configurações" : "Configurar terminal");
+        if (TerminalConfig.CONFIGURED && settings.getVisibility() != android.view.View.VISIBLE) settingsButton.setVisibility(android.view.View.GONE);
     }
     private JSONObject post(String base, String path, JSONObject data, String token) throws Exception {
+        return post(base, path, data, token, null);
+    }
+    private JSONObject post(String base, String path, JSONObject data, String token, String terminalKey) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(base + path).openConnection();
         connection.setConnectTimeout(8000); connection.setReadTimeout(8000); connection.setInstanceFollowRedirects(false);
         connection.setRequestMethod("POST"); connection.setDoOutput(true); connection.setRequestProperty("Content-Type", "application/json");
         if (token != null) connection.setRequestProperty("X-Tap-Token", token);
+        if (terminalKey != null) connection.setRequestProperty("X-Tap-Terminal-Key", terminalKey);
         try {
             try (java.io.OutputStream out = connection.getOutputStream()) { out.write(data.toString().getBytes("UTF-8")); }
             int code = connection.getResponseCode();
@@ -277,10 +426,14 @@ public class MainActivity extends Activity {
         final String payload = prefs.getString("release_payload", "{}");
         background(() -> post(base, "/api/tap-demo/orders/" + order + "/result", new JSONObject(payload), token), response -> {
             String state = response.getString("state");
-            String message = "released".equals(state) ? "Recarga iniciada no totem · retorno local de demonstração. Confira a estação."
+            String message = "paid".equals(state) ? "Pagamento recebido. Volte ao totem e toque em Conectar."
+                : "released".equals(state) ? "Recarga já iniciada pelo totem."
                 : response.optString("message", "Pagamento não confirmado ou pedido encerrado. Nenhuma nova recarga foi iniciada.");
             if ("null".equals(message)) message = "Pedido encerrado. Confira o InfinitePay; não repita o pagamento.";
             prefs.edit().remove("release_payload").putString("result", message).apply(); refresh();
+            if (listening && ("paid".equals(state) || "released".equals(state))) {
+                resetOrder(); status.setText(message + "\nAguardando o próximo pedido do totem."); scheduleTerminal();
+            }
         });
     }
 }

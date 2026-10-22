@@ -5,12 +5,25 @@ import fs from 'node:fs';
 const source = fs.readFileSync(new URL('../../js/tap-demo.js', import.meta.url), 'utf8');
 function setup() {
   const messages = [], store = new Map(), timers = [];
-  const context = { window: { App: { returnToStations: msg => messages.push(msg) }, SimClient: { send() {} } },
-    localStorage: { removeItem: k => store.delete(k) }, document: { getElementById: () => ({ textContent: '' }) }, clearTimeout() {}, setTimeout(fn) { timers.push(fn); }, AbortSignal };
+  const steps = [];
+  const context = { window: { App: { returnToStations: msg => messages.push(msg), showScreen() {}, showPaymentStep: step => steps.push(step) }, SimClient: { send() {} } },
+    localStorage: { removeItem: k => store.delete(k), setItem: (k,v) => store.set(k,v) }, document: { getElementById: () => ({ textContent: '' }) }, location: {origin:'https://example.com',hostname:'example.com'}, clearTimeout() {}, setTimeout(fn) { timers.push(fn); }, AbortSignal };
   vm.runInNewContext(source, context);
   const client = context.window.TapDemo; client.order = { id: 'order', token: 'secret' };
-  return { client, messages, timers, context };
+  return { client, messages, timers, context, steps, store };
 }
+
+test('InfiniteTap totem: pagamento avança à confirmação sem conectar; cliente conecta uma vez', async () => {
+  const {client, messages, steps, store} = setup(), calls = [];
+  client.request = async path => { calls.push(path); return {id:'order',state:path.endsWith('/connect')?'released':'paid',stationId:2,vehicle:'Carro'}; };
+  await client.poll();
+  assert.equal(steps.at(-1),'tap-confirmed'); assert.equal(messages.length,0);
+  assert.equal(calls.length,1); assert.equal(client.order.token,'secret');
+  assert.equal(JSON.parse(store.get('chargegrid-tap-order')).state,'paid');
+  await Promise.all([client.connect(),client.connect()]);
+  assert.equal(calls.filter(path=>path.endsWith('/connect')).length,1);
+  assert.equal(client.order,null); assert.equal(messages.length,1);
+});
 test('InfiniteTap totem: liberação volta às estações e elimina o pedido pendente', async () => {
   const { client, messages } = setup(); client.request = async () => ({ state: 'released' });
   await client.poll(); assert.equal(client.order, null); assert.equal(messages.length, 1); assert.match(messages[0], /Recarga iniciada/);

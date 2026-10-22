@@ -254,15 +254,28 @@
 
       <div id="payment-step-tap" class="payment-content" style="display:none;">
         <div class="pending-panel">
-          <h2 class="pending-title">Pagar no celular · InfiniteTap</h2>
+          <h2 class="pending-title">Cartão por aproximação · InfiniteTap</h2>
           <p id="tap-order-station" class="pending-text"></p>
           <div class="pending-summary"><span>Cobrança da apresentação</span><strong>R$ 1,00</strong></div>
+          <div id="tap-manual-connection">
           <p class="pending-text">No app ChargeGrid do celular, conecte este pedido:</p>
           <strong id="tap-code" style="font-size:2rem;letter-spacing:.15em"></strong>
           <p id="tap-address" class="pending-text" style="overflow-wrap:anywhere"></p>
+          </div>
           <p id="tap-order-status" class="pending-text" role="status" aria-live="polite"></p>
           <p class="pending-text">Demonstração do grupo: liberação pelo retorno local do app, sem consulta bancária independente. O custo estimado da energia continua separado.</p>
           <button class="btn btn-outline" style="width:100%" onclick="TapDemo.cancel().catch(e => alert(e.message))">Cancelar pedido</button>
+        </div>
+      </div>
+
+      <div id="payment-step-tap-confirmed" class="payment-content" style="display:none;">
+        <div class="pending-panel">
+          <div class="pending-icon material-symbols-outlined">check_circle</div>
+          <h2 class="pending-title">Pagamento recebido</h2>
+          <p id="tap-paid-station" class="pending-text"></p>
+          <p class="pending-text">Conecte o cabo ao veículo. Quando estiver pronto, toque em Conectar para iniciar a recarga.</p>
+          <p id="tap-connect-status" class="pending-text" role="status" aria-live="polite"></p>
+          <button id="tap-connect" class="btn btn-primary" style="width:100%" onclick="TapDemo.connect()">Conectar</button>
         </div>
       </div>
 

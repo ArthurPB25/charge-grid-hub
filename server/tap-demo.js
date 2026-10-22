@@ -1,4 +1,4 @@
-import { randomUUID, randomBytes, createHash } from 'node:crypto';
+import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { validSessionConfig } from './sim/validation.js';
 const { vehicles } = createRequire(import.meta.url)('../data/mock-data.js');
@@ -14,8 +14,11 @@ export function candidateTapApproval(data = {}) {
   return true;
 }
 
-export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.now }) {
+export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.now, terminalKey = process.env.TAP_TERMINAL_KEY || '', merchantHandle = process.env.TAP_TERMINAL_HANDLE || '' }) {
   const orders = new Map(), keys = new Map(), usedNsu = new Map();
+  const terminalEnabled = /^[a-f0-9]{64}$/i.test(terminalKey);
+  let terminalOwner = null, terminalHandle = null;
+  const hash = value => createHash('sha256').update(value).digest('hex');
   let beforeStart = () => {};
   const ttl = 10 * 60 * 1000;
   const fault = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -34,7 +37,28 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
     try { if (!enabled) throw fault('Demonstração InfiniteTap desativada.', 503); fn(req, res); }
     catch (e) { res.status(e.status || 500).json({ erro: e.message }); }
   };
-  app.get('/api/tap-demo/health', (req, res) => res.json({ enabled, amountCents: 100, evidence: 'local-callback-demo' }));
+  app.get('/api/tap-demo/health', (req, res) => res.json({ enabled, terminalEnabled, amountCents: 100, evidence: 'local-callback-demo' }));
+  // Dedicated merchant phone: one-time secret, exclusive device, FIFO orders.
+  // No provider call and no financial action happen while receiving an order.
+  app.post('/api/tap-demo/terminal/next', route((req, res) => {
+    const key = req.get('X-Tap-Terminal-Key') || '';
+    if (!terminalEnabled) throw fault('Celular fixo ainda não configurado pelo operador.', 503);
+    if (!/^[a-f0-9]{64}$/i.test(key) || !timingSafeEqual(Buffer.from(key.toLowerCase()), Buffer.from(terminalKey.toLowerCase()))) throw fault('Acesso ao celular fixo inválido.', 401);
+    const { deviceKey, handle } = req.body || {};
+    if (typeof deviceKey !== 'string' || !/^[a-zA-Z0-9_-]{32,128}$/.test(deviceKey) || typeof handle !== 'string' || !/^[\w-]{1,100}$/.test(handle)) throw fault('Identificação do celular ou conta inválida.');
+    if (merchantHandle && handle !== merchantHandle) throw fault('Conta diferente da configurada pelo estabelecimento.', 403);
+    const owner = hash(deviceKey);
+    if (terminalOwner && (terminalOwner !== owner || terminalHandle !== handle)) throw fault('Outro celular ou conta já está vinculado. Procure o operador.', 409);
+    terminalOwner = owner; terminalHandle = handle;
+    let order = [...orders.values()].find(o => o.terminalOwner === owner && update(o).state === 'pending');
+    if (!order) order = [...orders.values()].find(o => update(o).state === 'pending' && !o.phoneToken && available(o.config.stationId));
+    if (!order) return res.json({ order: null });
+    if (!order.phoneToken) {
+      order.handle = handle; order.phoneToken = randomBytes(24).toString('hex');
+      order.terminalOwner = owner;
+    }
+    res.json({ order: { ...publicOrder(order), token: order.phoneToken } });
+  }));
   app.post('/api/tap-demo/orders', route((req, res) => {
     const p = req.body || {}, key = req.get('Idempotency-Key');
     if (!/^[\w-]{16,100}$/.test(key || '') || !['debit', 'credit'].includes(p.method)) throw fault('Pedido inválido.');
@@ -53,7 +77,7 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
     }
     if (orders.size >= 500) throw fault('Limite de pedidos de demonstração atingido.', 503);
     if (!available(p.stationId)) throw fault('Estação indisponível.', 409);
-    if ([...orders.values()].some(o => update(o).state === 'pending' && o.config.stationId === p.stationId)) throw fault('Já existe um pedido pendente para esta estação.', 409);
+    if ([...orders.values()].some(o => ['pending', 'paid'].includes(update(o).state) && o.config.stationId === p.stationId)) throw fault('Já existe um pedido pendente para esta estação.', 409);
     let code;
     do { code = randomBytes(4).toString('hex').toUpperCase(); } while ([...orders.values()].some(o => o.code === code));
     const order = { id: randomUUID(), code, config, method: p.method, key, fingerprint,
@@ -70,6 +94,7 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
   app.post('/api/tap-demo/claim', route((req, res) => {
     const { code, handle, claimKey } = req.body || {};
     if (typeof code !== 'string' || !/^[A-F0-9]{8}$/.test(code) || typeof handle !== 'string' || !/^[\w-]{1,100}$/.test(handle)) throw fault('Código ou InfiniteTag inválidos.');
+    if (merchantHandle && handle !== merchantHandle) throw fault('Conta diferente da configurada pelo estabelecimento.', 403);
     if (claimKey != null && (typeof claimKey !== 'string' || !/^[a-zA-Z0-9_-]{32,128}$/.test(claimKey))) throw fault('Chave de conexão inválida.');
     const claimHash = claimKey ? createHash('sha256').update(claimKey).digest('hex') : null;
     const order = [...orders.values()].find(o => o.code === code);
@@ -97,11 +122,20 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
       order.state = 'blocked'; order.message = 'Estação indisponível. Confira o pagamento com o operador; não pague novamente.';
       return res.json(publicOrder(order));
     }
+    order.state = 'paid'; order.nsu = nsu;
+    order.message = 'Pagamento recebido. Volte ao totem e toque em Conectar para iniciar a recarga.';
+    usedNsu.set(nsu, order.id);
+    res.json(publicOrder(order));
+  }));
+  app.post('/api/tap-demo/orders/:id/connect', route((req, res) => {
+    const order = lookup(req.params.id, req.get('X-Tap-Token'));
+    if (order.state === 'released') return res.json(publicOrder(order));
+    if (order.state !== 'paid') throw fault('Aguarde a confirmação do pagamento antes de conectar.', 409);
+    if (!available(order.config.stationId)) throw fault('Estação indisponível. Procure o operador; não pague novamente.', 409);
     beforeStart(order);
     const session = engine.startUserSession(order.config);
-    if (!session) throw fault('Não foi possível iniciar a recarga. Consulte o operador.', 409);
-    order.state = 'released'; order.sessionId = session.id; order.nsu = nsu;
-    usedNsu.set(nsu, order.id);
+    if (!session) throw fault('Não foi possível conectar. Procure o operador; não pague novamente.', 409);
+    order.state = 'released'; order.sessionId = session.id;
     engine._notify();
     res.json(publicOrder(order));
   }));
@@ -110,5 +144,5 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
     if (order.state !== 'pending' || !available(order.config.stationId)) throw fault('Pedido expirado, encerrado ou estação indisponível. Não inicie o pagamento.', 409);
     res.json(publicOrder(order));
   }));
-  return { setBeforeStart(fn) { beforeStart = fn; }, canWatch(id, token) { try { return lookup(id, token).state === 'pending'; } catch { return false; } } };
+  return { setBeforeStart(fn) { beforeStart = fn; }, canWatch(id, token) { try { return ['pending', 'paid'].includes(lookup(id, token).state); } catch { return false; } } };
 }

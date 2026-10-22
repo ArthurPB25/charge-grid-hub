@@ -13,6 +13,7 @@ window.TapDemo = {
     this.busy = true;
     try {
       const health = await this.request('/health');
+      this.terminalMode = Boolean(health.terminalEnabled);
       if (!health.enabled) { window.App.showPaymentPending(); return; }
       const station = window.StationManager.getSelectedStation(), app = window.App;
       const request = app._paymentRequest;
@@ -30,16 +31,39 @@ window.TapDemo = {
     finally { this.busy = false; }
   },
   display() {
-    window.App.showScreen('payment'); window.App.showPaymentStep('tap');
+    window.App.showScreen('payment'); window.App.showPaymentStep(this.order.state === 'paid' ? 'tap-confirmed' : 'tap');
+    const manual = document.getElementById('tap-manual-connection');
+    if (manual) manual.hidden = Boolean(this.terminalMode);
     document.getElementById('tap-code').textContent = this.order.code;
+    document.getElementById('tap-paid-station').textContent = `Estação ${this.order.stationId} · ${this.order.vehicle}`;
     document.getElementById('tap-order-station').textContent = `Estação ${this.order.stationId} · ${this.order.vehicle}`;
     document.getElementById('tap-address').textContent = location.origin.includes('localhost') || location.hostname === '127.0.0.1'
       ? 'No celular, use http://IP-DO-COMPUTADOR:' + (location.port || '80') + ' na mesma rede Wi-Fi.' : location.origin;
-    document.getElementById('tap-order-status').textContent = 'Aguardando o celular. Informe o endereço do servidor e este código no app ChargeGrid.';
+    document.getElementById('tap-connect').hidden = this.order.state !== 'paid';
+    document.getElementById('tap-order-status').textContent = this.order.state === 'paid'
+      ? 'Pagamento recebido. Conecte o cabo ao veículo e toque em Conectar para iniciar a recarga.' : this.terminalMode
+      ? 'Aproxime seu cartão do celular do estabelecimento quando o InfinitePay solicitar. Valor: R$ 1,00.'
+      : 'Aguardando o celular. Informe o endereço do servidor e este código no app ChargeGrid.';
+  },
+  async connect() {
+    if (this.busy || this.order?.state !== 'paid') return;
+    this.busy = true;
+    const order = this.order, revision = this.revision;
+    const button = document.getElementById('tap-connect'); button.disabled = true;
+    try {
+      window.SimClient.send('tap-demo:watch', { id: order.id, token: order.token });
+      const data = await this.request(`/orders/${order.id}/connect`, { method: 'POST', headers: { 'X-Tap-Token': order.token } });
+      if (revision !== this.revision || this.order?.id !== order.id) return;
+      if (data.state === 'released') { this.forget(); window.App.returnToStations('Recarga iniciada após sua confirmação.'); }
+    } catch (e) { if (this.order?.id === order.id) document.getElementById('tap-connect-status').textContent = e.message; }
+    finally { this.busy = false; button.disabled = false; }
   },
   restore() {
     try { this.order = JSON.parse(localStorage.getItem('chargegrid-tap-order')); } catch { localStorage.removeItem('chargegrid-tap-order'); }
-    if (this.order) { window.MqttBridge?.ativar(); this.display(); this.poll(); }
+    if (this.order) {
+      window.MqttBridge?.ativar(); this.display(); this.poll();
+      this.request('/health').then(health => { if (this.order) { this.terminalMode = Boolean(health.terminalEnabled); this.display(); } }).catch(() => {});
+    }
   },
   forget() { this.revision++; clearTimeout(this.timer); this.order = null; this.requestKey = null; localStorage.removeItem('chargegrid-tap-order'); },
   recoverMissing() {
@@ -52,6 +76,7 @@ window.TapDemo = {
     try {
       const data = await this.request(`/orders/${order.id}/cancel`, { method: 'POST', headers: { 'X-Tap-Token': order.token } });
       if (revision !== this.revision || this.order?.id !== order.id) return;
+      if (data.state === 'paid') { this.order = { ...order, ...data }; this.display(); return; }
       this.forget();
       window.App.returnToStations(data.state === 'released' ? 'Recarga já iniciada. Confira a estação.' : 'Pedido encerrado. Cancelar o pedido não estorna um pagamento no InfinitePay.');
     } catch (e) {
@@ -69,6 +94,12 @@ window.TapDemo = {
       if (revision !== this.revision || this.order?.id !== order.id) return;
       if (data.state === 'released') {
         this.forget(); window.App.returnToStations('Recarga iniciada por retorno local do InfiniteTap · demonstração R$ 1,00.'); return;
+      }
+      if (data.state === 'paid') {
+        this.order = { ...order, ...data };
+        localStorage.setItem('chargegrid-tap-order', JSON.stringify(this.order));
+        this.display();
+        return;
       }
       if (data.state !== 'pending') {
         const message = data.message || 'Pedido encerrado ou expirado. Confira o InfinitePay antes de pagar novamente.';

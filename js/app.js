@@ -613,7 +613,7 @@ window.App = {
   },
 
   showPaymentStep(step) {
-    ['method', 'pending', 'pix', 'authorization', 'tap'].forEach(s => {
+    ['method', 'pending', 'pix', 'authorization', 'tap', 'tap-confirmed'].forEach(s => {
       const el = document.getElementById(`payment-step-${s}`);
       if (el) el.style.display = s === step ? 'flex' : 'none';
     });
