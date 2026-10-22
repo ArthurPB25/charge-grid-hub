@@ -1,6 +1,9 @@
 import { dayKey } from './totem-history.js';
 import { randomUUID } from 'node:crypto';
 import { createReportPdf } from './report-pdf.js';
+import { fileURLToPath } from 'node:url';
+import { CloudAdvisor } from './cloud-advisor.js';
+import { managementInsights, selectManagementTips } from './management-insights.js';
 
 const PERIODS = { today: 1, week: 7, month: 30 };
 const number = value => Number.isFinite(value) ? Math.max(0, value) : 0;
@@ -163,6 +166,8 @@ export async function generateAiAnalysis(context, { baseUrl = 'http://127.0.0.1:
 
 export function attachReportRoutes(app, { engine, config = process.env, fetchImpl = fetch, now = () => new Date() }) {
   const enabled = config.AI_PROVIDER !== 'rules';
+  const isCloud = config.AI_PROVIDER === 'ollama-cloud';
+  const advisor = isCloud ? new CloudAdvisor({config,fetchImpl,now,file:config.AI_USAGE_FILE || (config===process.env ? fileURLToPath(new URL('./storage/ai-usage.json',import.meta.url)) : null)}) : null;
   const model = config.OLLAMA_MODEL || 'qwen2.5:3b';
   const baseUrl = config.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
   const cache = new Map();
@@ -187,23 +192,45 @@ export function attachReportRoutes(app, { engine, config = process.env, fetchImp
       res.status(500).json({ erro: 'Não foi possível criar o PDF. Tente baixar novamente.' });
     }
   });
-  app.get('/api/reports/status', async (req, res) => res.json({ aiConfigured: enabled, provider: enabled ? 'Ollama' : null,
-    model: enabled ? model : null, ...(enabled ? await checkOllama({ baseUrl, model, fetchImpl }) : { ready: false, reason: 'disabled' }) }));
+  app.get('/api/reports/status', async (req, res) => {
+    res.set('Cache-Control','no-store');
+    if(advisor) return res.json({aiConfigured:true,provider:'Ollama Cloud',...advisor.status()});
+    return res.json({ aiConfigured: enabled, provider: enabled ? 'Ollama' : null,
+    model: enabled ? model : null, ...(enabled ? await checkOllama({ baseUrl, model, fetchImpl }) : { ready: false, reason: 'disabled' }) });
+  });
   app.post('/api/reports/generate', async (req, res) => {
     const period = req.body?.period || 'week';
     if (!Object.hasOwn(PERIODS, period)) return res.status(400).json({ erro: 'Selecione hoje, últimos sete dias ou últimos trinta dias.' });
+    if(req.body?.useAi!=null && typeof req.body.useAi!=='boolean') return res.status(400).json({erro:'Escolha válida de análise necessária.'});
+    if(advisor && req.body?.useAi===true && !advisor.authorized(req.get('X-Report-Key'))) return res.status(403).json({erro:'Informe o código de acesso administrativo da IA.'});
     const date = now();
-    const candidate = cache.get(period);
+    const candidate = advisor ? null : cache.get(period);
     const saved = candidate && date.getTime() - candidate.at < 60000 ? candidate : null;
     if (busy) return res.status(429).json({ erro: 'Um relatório está sendo gerado. Aguarde a conclusão.' });
     busy = true;
     try {
-      const context = buildReportContext(engine.snapshot(), period, date);
+      const snapshot = engine.snapshot();
+      const context = buildReportContext(snapshot, period, date);
+      const management = managementInsights(context,snapshot);
+      let cloudResult = null;
       const analysis = localAnalysis(context);
       let sections = saved?.sections || reportSections(context);
       let mode = saved?.mode || 'rules';
       let warning = enabled ? null : 'IA local desativada. Análise factual e organização padrão, sem modelo de IA.';
-      if (enabled && !saved) {
+      if(advisor) {
+        warning=null;
+        try {
+          cloudResult=await advisor.select(context,management,{requested:req.body?.useAi===true,accessKey:req.get('X-Report-Key')});
+          mode=cloudResult.selection?'ai':'rules';
+        } catch(error) {
+          const messages={'daily-limit':'O limite de análises com IA do servidor foi atingido hoje.',quota:'A cota do provedor não está disponível.',
+            cooldown:'A IA está em pausa após uma tentativa anterior. Aguarde alguns minutos.',credentials:'Confira a chave do Ollama Cloud no servidor.',
+            'missing-key':'A chave do Ollama Cloud ainda não foi configurada.','missing-access-key':'Configure o acesso administrativo da IA.',
+            'usage-storage':'O controle de uso da IA está indisponível.','budget-disabled':'O consumo de IA está desativado.'};
+          warning=(messages[error.code]||'A IA não pôde concluir a análise agora.')+' Os gráficos, indicadores e dicas do sistema continuam disponíveis.';
+          cloudResult={selection:null,cached:false,usage:advisor.status().usage};
+        }
+      } else if (enabled && !saved) {
         try {
           sections = reportSections(context, await generateAiAnalysis(context, { baseUrl, model, fetchImpl }));
           mode = 'ai';
@@ -214,10 +241,12 @@ export function attachReportRoutes(app, { engine, config = process.env, fetchImp
           warning = `${reason} A análise factual permanece disponível com organização padrão, sem modelo de IA.`;
         }
       }
-      const report = { reportId: randomUUID(), generatedAt: date.toISOString(), mode, provider: mode === 'ai' ? 'Ollama' : null, model: mode === 'ai' ? model : null, warning,
-        period: context.period, metrics: context.metrics, facts: context.facts, sections, limitations: context.limitations, ...analysis, cached: Boolean(saved) };
+      const report = { reportId: randomUUID(), generatedAt: date.toISOString(), mode, provider: mode === 'ai' ? (advisor?'Ollama Cloud':'Ollama') : null, model: mode === 'ai' ? (advisor?advisor.model:model) : null, warning,
+        period: context.period, metrics: context.metrics, facts: context.facts, sections, limitations: context.limitations, ...analysis,
+        management:selectManagementTips(management,cloudResult?.selection),
+        ...(advisor?{aiUsage:cloudResult.usage,analyzedAt:cloudResult.analyzedAt||null}:{}),cached: advisor ? cloudResult.cached : Boolean(saved) };
       // Cache only the AI arrangement; every request recalculates the current data.
-      if (!saved && (mode === 'ai' || !enabled)) cache.set(period, { at: date.getTime(), sections, mode });
+      if (!advisor && !saved && (mode === 'ai' || !enabled)) cache.set(period, { at: date.getTime(), sections, mode });
       pruneDownloads(date);
       downloads.set(report.reportId, { at: date.getTime(), report });
       res.json(report);

@@ -24,7 +24,7 @@ export function createReportPdf(report) {
     paragraph('Análise da operação', { size: 24, bold: true, color: '#182330', gap: 14 });
     paragraph(`Período: ${date(report.period.start)} a ${date(report.period.end)}`);
     paragraph(`Gerado em: ${new Date(report.generatedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} (São Paulo)`);
-    paragraph(report.mode === 'ai' ? `Análise calculada pelo sistema | Dados organizados com Ollama / ${report.model}` : 'Análise calculada pelo sistema | Organização padrão - sem IA', { bold: true });
+    paragraph(report.mode === 'ai' ? `Análise calculada pelo sistema | Apoio administrativo: ${report.provider || 'Ollama'} / ${report.model}` : 'Análise e dicas calculadas pelo sistema - sem consulta à IA', { bold: true });
     if (report.warning) paragraph(report.warning, { color: '#945c10' });
     heading('Números do período');
     for (const id of ['sessions', 'energy', 'cost', 'sems']) {
@@ -41,6 +41,31 @@ export function createReportPdf(report) {
       paragraph(o.title, { size: 11, bold: true });
       paragraph(o.analysis);
 
+    }
+    if(report.management) {
+      doc.addPage();
+      heading('Visão simples do período');
+      const chart=report.management.charts[report.management.chart];
+      paragraph(chart.title,{size:12,bold:true});paragraph(chart.description,{size:9,color:'#687382'});
+      const rows=chart.items.filter(item=>item.value>0), max=Math.max(1,...rows.map(item=>item.value));
+      if(!rows.length)paragraph('Ainda não há registros para este gráfico.');
+      for(const item of rows){
+        room(30); const y=doc.y;
+        const label=/^\d{4}-/.test(item.label)?item.label.slice(5).split('-').reverse().join('/'):item.label;
+        style(9).text(label,46,y,{width:110,lineBreak:false});
+        doc.save();doc.roundedRect(160,y+2,190,9,4).fill('#eceef1');
+        if(item.value>0)doc.roundedRect(160,y+2,190*item.value/max,9,4).fill('#e60012');doc.restore();
+        style(9,true).text(`${item.value.toLocaleString('pt-BR',{maximumFractionDigits:1})} ${chart.unit}`,360,y,{width:185,align:'right',lineBreak:false});doc.y=y+27;
+      }
+      doc.addPage();
+      heading(report.provider==='Ollama Cloud'&&report.mode==='ai'?'Dicas priorizadas pela IA':'Próximos passos para o estabelecimento');
+      for(const tip of report.management.tips){
+        room(height(tip.title,12,true)+height(tip.basis)+height(tip.action)+height(tip.limits,9)+70);
+        paragraph(tip.title,{size:12,bold:true});
+        paragraph(`O que os dados mostram: ${tip.basis}`);
+        paragraph(`Ação possível: ${tip.action}`);
+        paragraph(`O que precisa ser verificado: ${tip.limits}`,{size:9,color:'#687382',gap:18});
+      }
     }
     doc.addPage();
     heading('Dados utilizados na análise');

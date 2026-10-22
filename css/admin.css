@@ -10,6 +10,11 @@
 .report-generate { padding: 12px 20px; border-radius: 8px; border: 0; background: var(--color-primary); color: white; font: inherit; font-weight: 600; cursor: pointer; }
 .report-generate:disabled { opacity: .6; cursor: wait; }
 .report-controls [hidden] { display: none; }
+.report-access { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin:20px 0; padding:16px; border:1px solid var(--color-border); border-radius:10px; background:var(--color-surface); }
+.report-access[hidden] { display:none; }
+.report-access label { display:grid; gap:8px; font-size:12px; }
+.report-access input { padding:12px; border:1px solid var(--color-border); border-radius:8px; color:var(--color-text); background:var(--color-bg); font:inherit; width:min(280px,100%); }
+.report-access small { flex-basis:100%; color:var(--color-text-secondary); line-height:1.5; }
 .report-muted { font-size: 12px; }
 .report-empty { text-align: center; padding: 42px 20px !important; color: var(--color-text-secondary); }
 .report-empty > span { font-size: 36px; }
@@ -32,6 +37,18 @@
 .report-action > p { display: grid; gap: 4px; }
 .report-action > p > strong { font-size: 12px; }
 .report-action > p > span { font-size: 14px; color: var(--color-text-secondary); }
+.report-action + .report-action { border-top: 1px solid var(--color-border); margin-top: 24px; padding-top: 12px; }
+.report-chart-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 22px; }
+.report-chart-tabs button { padding: 9px 13px; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-surface); color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: 12px; }
+.report-chart-tabs button[aria-pressed="true"] { background: var(--color-primary-light); border-color: var(--color-primary); color: var(--color-primary); }
+.report-chart-tabs button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.report-chart-area { margin-top: 8px; }
+.report-bar-row { display: grid; grid-template-columns: minmax(70px, 115px) minmax(50px, 1fr) minmax(105px, 145px); gap: 12px; align-items: center; margin: 16px 0; font-size: 12px; }
+.report-bar-row strong { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.report-bar-track { height: 12px; border-radius: 20px; background: var(--color-surface-elevated); overflow: hidden; }
+.report-bar-fill { height: 100%; border-radius: inherit; background: var(--color-primary); }
+.report-empty-chart { padding: 24px 0; color: var(--color-text-secondary); }
+@media(max-width:480px) { .report-bar-row { grid-template-columns: 76px 1fr 85px; gap: 6px; font-size: 11px; } }
 .report-sources summary { cursor: pointer; font-weight: 600; }
 .report-sources p { display: grid; gap: 4px; font-size: 13px; }
 .report-sources small, .report-sources li { color: var(--color-text-secondary); line-height: 1.7; }

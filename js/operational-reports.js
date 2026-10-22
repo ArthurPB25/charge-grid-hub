@@ -5,13 +5,20 @@ window.OperationalReports = {
     section.innerHTML = `
       <div class="card-panel report-intro">
         <div class="report-eyebrow"><span class="material-symbols-outlined" aria-hidden="true">insights</span> ANÁLISE DA OPERAÇÃO</div>
-        <h2>Entenda os dados da operação.</h2>
-        <p>Recargas, energia, valores calculados e situação das estações, com as fontes de cada informação.</p>
+        <h2>Da operação à próxima decisão.</h2>
+        <p>Veja o uso ao longo dos dias, entenda os resultados das recargas e encontre ações para acompanhar no estabelecimento.</p>
         <div class="report-controls">
           <label for="report-period">Período<select id="report-period"><option value="today">Hoje</option><option value="week" selected>Últimos 7 dias</option><option value="month">Últimos 30 dias</option></select></label>
           <button class="report-generate" id="report-generate">Gerar relatório</button>
+          <button class="btn-outline" id="report-ai" hidden>Priorizar dicas com IA</button>
           <button class="btn-outline" id="report-download" hidden>Baixar PDF</button>
         </div>
+        <form id="report-access" class="report-access" hidden>
+          <label for="report-access-code">Acesso do responsável<input id="report-access-code" type="password" minlength="16" maxlength="256" autocomplete="off" required placeholder="Código administrativo da IA"></label>
+          <button class="report-generate" type="submit">Confirmar análise</button>
+          <button class="btn-outline" type="button" id="report-access-cancel">Cancelar</button>
+          <small>Use o código administrativo fornecido ao responsável pelo estabelecimento.</small>
+        </form>
         <p id="report-provider" class="report-muted">Verificando conexão com o assistente…</p>
         <p id="report-status" role="status" aria-live="polite"></p>
       </div>
@@ -19,6 +26,14 @@ window.OperationalReports = {
         <div class="card-panel report-empty"><span class="material-symbols-outlined" aria-hidden="true">assignment</span><h3>Seu relatório começa pelos dados</h3><p>Escolha o período para consultar a análise dos registros e baixar o PDF.</p></div>
       </div>`;
     section.querySelector('#report-generate').addEventListener('click', () => this.generate());
+    section.querySelector('#report-ai').addEventListener('click', () => this.generate(true));
+    section.querySelector('#report-access').addEventListener('submit', event=>{
+      event.preventDefault();const field=section.querySelector('#report-access-code');
+      this.aiAccessKey=field.value;field.value='';section.querySelector('#report-access').hidden=true;this.generate(true);
+    });
+    section.querySelector('#report-access-cancel').addEventListener('click',()=>{
+      section.querySelector('#report-access-code').value='';section.querySelector('#report-access').hidden=true;
+    });
     section.querySelector('#report-download').addEventListener('click', () => this.download());
     this.checkProvider();
   },
@@ -28,6 +43,13 @@ window.OperationalReports = {
       const response = await fetch(`${window.ChargeGridConfig.apiOrigin}/api/reports/status`);
       if (!response.ok) throw new Error();
       const status = await response.json();
+      this.cloudReady=Boolean(status.cloud&&status.ready);
+      this.section.querySelector('#report-ai').hidden=!this.cloudReady;
+      if(status.cloud) {
+        label.textContent=status.ready ? `Modo econômico: IA somente sob demanda. Limite do servidor: ${status.usage.dailyLimit} análises novas por dia; ${status.usage.callsToday} tentativa(s) hoje. Consultar gráficos, repetir uma análise recente e baixar PDF não consome uma nova chamada. Esse controle não representa o saldo da conta Ollama.`
+          : 'IA online aguardando ativação. Gráficos, indicadores e dicas do sistema já estão disponíveis.';
+        return;
+      }
       label.textContent = status.ready ? `Ollama (${status.model}) organiza os dados · análise calculada pelo sistema · sem cobrança de API.` :
         status.reason === 'missing-model' ? `O modelo ${status.model} ainda não foi baixado no computador do servidor. Você pode gerar uma análise por regras.` :
         status.reason === 'disabled' ? 'IA local desativada · análise por regras disponível.' :
@@ -35,35 +57,43 @@ window.OperationalReports = {
         'Ollama desconectado · abra o Ollama no computador do servidor. Análise por regras disponível.';
     } catch { label.textContent = 'Não foi possível verificar a configuração. Confira a conexão com o servidor.'; }
   },
-  async generate() {
+  async generate(useAi=false) {
     if (this.loading) return;
+    if(useAi && !this.aiAccessKey) {
+      this.section.querySelector('#report-access').hidden=false;
+      this.section.querySelector('#report-access-code').focus();return;
+    }
     const button = this.section.querySelector('#report-generate');
     const period = this.section.querySelector('#report-period');
     const status = this.section.querySelector('#report-status');
     const result = this.section.querySelector('#report-result');
+    const aiButton=this.section.querySelector('#report-ai');
     this.loading = true;
     this.report = null;
     this.section.querySelector('#report-download').hidden = true;
     result.replaceChildren(this.node('p', 'Preparando a análise do período selecionado…'));
     button.disabled = period.disabled = true;
     button.textContent = 'Preparando relatório…';
-    status.textContent = 'Calculando os indicadores e organizando os dados. A IA local pode levar até um minuto.';
+    aiButton.disabled=true;
+    status.textContent = useAi ? 'Verificando análise recente antes de consultar a IA…' : 'Calculando indicadores, gráficos e dicas do período…';
     result.setAttribute('aria-busy', 'true');
     try {
       const response = await fetch(`${window.ChargeGridConfig.apiOrigin}/api/reports/generate`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period: period.value }), signal: AbortSignal.timeout(70000)
+        method: 'POST', headers: { 'Content-Type': 'application/json',...(useAi?{'X-Report-Key':this.aiAccessKey}:{}) }, body: JSON.stringify({ period: period.value,useAi }), signal: AbortSignal.timeout(70000)
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.erro || 'Falha ao gerar o relatório.');
+      if (!response.ok) {if(response.status===403)this.aiAccessKey=null;throw new Error(data.erro || 'Falha ao gerar o relatório.');}
       this.report = data;
       this.render(data);
       this.section.querySelector('#report-download').hidden = false;
-      status.textContent = data.cached ? 'Dados atualizados. A organização dos indicadores foi reutilizada da última geração.' : 'Relatório pronto. Confira a análise e os dados utilizados abaixo.';
+      status.textContent = data.cached ? 'Dados atualizados. A análise recente foi reaproveitada, sem nova consulta à IA.' : 'Relatório pronto. Confira os gráficos e as dicas abaixo.';
     } catch (err) {
       status.textContent = err.name === 'TimeoutError' ? 'O relatório demorou mais que o esperado. Tente novamente.' : err.message || 'Não foi possível gerar o relatório. Tente novamente.';
+      result.replaceChildren(this.node('p','O relatório não foi gerado. Confira a mensagem acima e tente novamente.'));
     } finally {
       this.loading = false;
       button.disabled = period.disabled = false;
+      aiButton.disabled=false;
       button.textContent = 'Gerar relatório';
       result.setAttribute('aria-busy', 'false');
       this.checkProvider();
@@ -89,7 +119,7 @@ window.OperationalReports = {
     result.replaceChildren();
     const date = value => value.split('-').reverse().join('/');
     const meta = this.node('div', null, 'report-meta');
-    meta.append(this.node('span', report.mode === 'ai' ? 'Análise do sistema · dados organizados com IA local' : 'Análise do sistema · organização padrão', 'report-mode'));
+    meta.append(this.node('span', report.mode === 'ai' ? (report.provider==='Ollama Cloud'?'Prioridades selecionadas com IA':'Dados organizados com IA local') : 'Análise e dicas do sistema', 'report-mode'));
     meta.append(this.node('span', `${date(report.period.start)} a ${date(report.period.end)} · Gerado em ${new Date(report.generatedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`));
     result.append(meta);
     if (report.warning) result.append(this.node('p', report.warning, 'report-notice'));
@@ -101,6 +131,43 @@ window.OperationalReports = {
       metrics.append(card);
     }
     result.append(metrics);
+    if(report.management) {
+      const visual=this.node('div',null,'card-panel report-visual');
+      visual.append(this.node('h2','O período em um olhar'));
+      const choices=this.node('div',null,'report-chart-tabs'),chartArea=this.node('div',null,'report-chart-area');
+      const showChart=key=>{
+        chartArea.replaceChildren();
+        for(const button of choices.children)button.setAttribute('aria-pressed',String(button.dataset.chart===key));
+        const chart=report.management.charts[key];
+        chartArea.append(this.node('h3',chart.title),this.node('p',chart.description,'report-muted'));
+        const max=Math.max(1,...chart.items.map(item=>item.value));
+        if(!chart.items.some(item=>item.value>0))chartArea.append(this.node('p','Ainda não há registros para este gráfico.','report-empty-chart'));
+        else for(const item of chart.items){
+          const row=this.node('div',null,'report-bar-row');
+          const label=/^\d{4}-/.test(item.label)?item.label.slice(5).split('-').reverse().join('/'):item.label;
+          row.append(this.node('span',label));
+          const track=this.node('div',null,'report-bar-track'),bar=this.node('div',null,'report-bar-fill');
+          bar.style.width=Math.max(0,Math.min(100,item.value/max*100))+'%';track.append(bar);track.setAttribute('aria-hidden','true');
+          row.append(track,this.node('strong',`${item.value.toLocaleString('pt-BR',{maximumFractionDigits:1})} ${chart.unit}`));chartArea.append(row);
+        }
+      };
+      for(const [key,chart]of Object.entries(report.management.charts)){
+        const button=this.node('button',chart.title);button.type='button';button.dataset.chart=key;button.setAttribute('aria-pressed','false');
+        button.addEventListener('click',()=>showChart(key));choices.append(button);
+      }
+      visual.append(choices,chartArea);result.append(visual);showChart(report.management.chart);
+      const next=this.node('div',null,'card-panel report-next');
+      next.append(this.node('h2',report.provider==='Ollama Cloud'&&report.mode==='ai'?'Dicas priorizadas pela IA':'Próximos passos para o estabelecimento'));
+      if(report.analyzedAt)next.append(this.node('p',`Priorização feita em ${new Date(report.analyzedAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})}. Os indicadores abaixo foram recalculados agora.`,'report-muted'));
+      for(const tip of report.management.tips){
+        const item=this.node('article',null,'report-action');item.append(this.node('h3',tip.title));
+        for(const [label,value]of [['O que os dados mostram',tip.basis],['O que você pode fazer',tip.action],['O que ainda precisa ser verificado',tip.limits]]){
+          const p=this.node('p');p.append(this.node('strong',label),this.node('span',value));item.append(p);
+        }
+        this.evidence(item,tip.factIds,report.facts);next.append(item);
+      }
+      result.append(next);
+    }
     const summary = this.node('div', null, 'card-panel');
     summary.append(this.node('h2', 'Análise dos registros'), this.node('p', report.summary));
     const observations = this.node('div', null, 'report-observations');
