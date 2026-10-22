@@ -52,6 +52,9 @@ window.TapDemo = {
     const order = this.order, revision = this.revision;
     const button = document.getElementById('tap-connect'); button.disabled = true;
     try {
+      if (order.stationId === 1 && window.MqttBridge?.prepararNovaRecarga() === false) {
+        throw new Error('Aguarde o envio do desligamento anterior do ESP e tente conectar novamente. O pedido pago foi preservado.');
+      }
       window.SimClient.send('tap-demo:watch', { id: order.id, token: order.token });
       const data = await this.request(`/orders/${order.id}/connect`, { method: 'POST', headers: { 'X-Tap-Token': order.token } });
       if (revision !== this.revision || this.order?.id !== order.id) return;

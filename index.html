@@ -365,6 +365,7 @@
             <button class="btn btn-outline" id="btn-stop-charge" disabled>DESLIGAR · Encerrar recarga</button>
           </div>
           <pre data-mqtt-log class="mqtt-control-log" aria-label="Log de comandos MQTT"></pre>
+          <p data-esp-stop-status role="status" class="pending-text" hidden></p>
         </div>
         <!-- Controle Dinâmico de Demanda: aparece quando o tótem limita a recarga -->
         <div class="demand-banner" id="demand-banner">
@@ -486,6 +487,8 @@
         </div>
       </div>
       <div class="modal-actions">
+        <p data-esp-stop-status role="status" class="pending-text" hidden></p>
+        <button class="btn btn-outline" type="button" data-esp-stop-retry hidden>Reenviar desligamento do ESP</button>
         <button class="btn btn-primary" style="width:100%" id="btn-new-charge">Voltar às estações</button>
         <button class="btn btn-outline" style="width:100%" id="btn-close-modal">Fechar</button>
       </div>

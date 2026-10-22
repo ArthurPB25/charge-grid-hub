@@ -42,13 +42,13 @@ test('DESLIGAR, cancelamento e expiração impedem autorização posterior', asy
   }
 });
 
-function bridgeFixture() {
+function bridgeFixture(store = new Map()) {
   const client = new EventEmitter();
   client.connected = false;
   const published = [];
   client.subscribe = (topics, opts, cb) => cb(null, topics.map(topic => ({ topic, qos: 0 })));
   client.publish = (topic, payload, opts, cb) => { published.push({ topic, payload, opts }); cb?.(); };
-  const window = { addEventListener() {} };
+  const window = { addEventListener() {}, localStorage:{getItem:key=>store.get(key),setItem:(key,value)=>store.set(key,value),removeItem:key=>store.delete(key)} };
   const elements = new Map();
   const document = {
     querySelectorAll: () => [],
@@ -63,8 +63,49 @@ function bridgeFixture() {
   bridge.ativar();
   client.connected = true;
   client.emit('connect');
-  return { client, published, bridge, window, context, document };
+  return { client, published, bridge, window, context, document, store };
 }
+
+test('corte manual usa DESLIGAR no comando original com QoS1, sem confundir broker e confirmação do ESP', () => {
+  const {client,published,bridge}=bridgeFixture();
+  assert.equal(bridge.cortarCarga(),true);
+  assert.equal(published.at(-1).topic,bridge.topicoComando);
+  assert.equal(published.at(-1).payload,'DESLIGAR');
+  assert.equal(published.at(-1).opts.qos,1);assert.equal(published.at(-1).opts.retain,false);
+  assert.equal(bridge.snapshot().corte,'sent');
+  client.emit('message',bridge.topicoStatus,Buffer.from('PARADO'),{retain:true});
+  assert.equal(bridge.snapshot().corte,'sent','estado retido não confirma este corte');
+  client.emit('message',bridge.topicoStatus,Buffer.from('PARADO'),{});
+  assert.equal(bridge.snapshot().corte,'confirmed');
+  const count=published.length;bridge.aplicarComandoRele('LIGAR');
+  assert.equal(published.length,count,'retomada atrasada não religa após corte manual');
+  bridge.autorizarCarga();assert.equal(published.at(-1).payload,'LIGAR');
+  bridge.cortarCarga();
+  assert.equal(bridge.prepararNovaRecarga(),true);
+  bridge.aplicarComandoRele('LIGAR');assert.equal(published.at(-1).topic,bridge.topicoRele,'nova recarga InfiniteTap pode ligar após corte anterior enviado');
+});
+
+test('desligamento offline sobrevive ao recarregamento e é enviado ao reconectar; LIGAR não é enfileirado', () => {
+  const first=bridgeFixture();first.client.connected=false;first.client.emit('close');
+  assert.equal(first.bridge.cortarCarga(),false);assert.equal(first.published.length,0);
+  assert.equal(first.bridge.snapshot().corte,'pending');assert.equal(first.store.get('chargegrid-esp-stop-pending'),'1');
+  first.bridge.autorizarCarga();assert.equal(first.published.length,0);
+  const next=bridgeFixture(first.store);
+  assert.equal(next.published.length,1);assert.equal(next.published[0].payload,'DESLIGAR');
+  assert.equal(next.store.has('chargegrid-esp-stop-pending'),false);
+  assert.equal(next.bridge.snapshot().corte,'sent');
+});
+
+test('falha de publicação mantém corte e callback antigo não apaga novo pedido de desligamento', () => {
+  const {client,bridge,store,published}=bridgeFixture();
+  const callbacks=[];client.publish=(topic,payload,opts,cb)=>{published.push({topic,payload,opts});callbacks.push(cb);};
+  bridge.cortarCarga();callbacks[0](new Error('offline'));
+  assert.equal(bridge.snapshot().corte,'pending');assert.equal(store.get('chargegrid-esp-stop-pending'),'1');
+  client.connected=false;client.emit('close');client.connected=true;client.emit('connect');
+  const retry=callbacks.at(-1);assert.equal(callbacks.length,2);
+  callbacks[0]();assert.equal(store.get('chargegrid-esp-stop-pending'),'1');
+  retry();assert.equal(bridge.snapshot().corte,'sent');assert.equal(store.has('chargegrid-esp-stop-pending'),false);
+});
 
 test('HTML aberto por file usa backend local; acesso por IP conserva o host', () => {
   for (const hostname of ['', '192.168.1.20']) {

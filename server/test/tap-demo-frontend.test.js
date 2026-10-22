@@ -87,3 +87,12 @@ test('InfiniteTap totem: request preserva status HTTP para distinguir pedido per
   context.fetch = async () => ({ ok: false, status: 404, json: async () => ({ erro: 'Pedido inexistente' }) });
   await assert.rejects(client.request('/orders/missing'), e => e.status === 404 && e.message === 'Pedido inexistente');
 });
+
+test('InfiniteTap físico preserva pedido pago enquanto houver desligamento pendente e permite nova sessão depois', async () => {
+  const {client,context,messages}=setup();let calls=0,ready=false;
+  client.order={id:'paid',token:'secret',stationId:1,state:'paid'};
+  context.window.MqttBridge={prepararNovaRecarga:()=>ready};
+  client.request=async()=>{calls++;return {state:'released'};};
+  await client.connect();assert.equal(calls,0);assert.equal(client.order.state,'paid');assert.equal(messages.length,0);
+  ready=true;await client.connect();assert.equal(calls,1);assert.equal(client.order,null);assert.equal(messages.length,1);
+});

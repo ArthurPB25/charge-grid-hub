@@ -780,6 +780,9 @@ window.App = {
   },
 
   initMqttControls() {
+    document.querySelectorAll('[data-esp-stop-retry]').forEach(button => {
+      button.addEventListener('click', () => window.MqttBridge.cortarCarga());
+    });
     document.querySelectorAll('[data-mqtt-command]').forEach(button => {
       button.addEventListener('click', () => {
         if (button.disabled) return;
@@ -811,6 +814,18 @@ window.App = {
     document.querySelectorAll('[data-mqtt-status]').forEach(el => {
       el.textContent = ready ? 'MQTT conectado' : 'MQTT desconectado';
       el.classList.toggle('text-success', Boolean(ready));
+    });
+    const cutMessages = {
+      pending: 'Desligamento do ESP pendente. Aguarde a reconexão MQTT e confira o relé.',
+      sent: 'DESLIGAR enviado. Aguardando confirmação de desligamento do ESP.',
+      confirmed: 'ESP informou que a energia está desligada.'
+    };
+    document.querySelectorAll('[data-esp-stop-status]').forEach(el => {
+      el.hidden = !state.corte;
+      el.textContent = cutMessages[state.corte] || '';
+    });
+    document.querySelectorAll('[data-esp-stop-retry]').forEach(button => {
+      button.hidden = !state.corte || state.corte === 'confirmed';
     });
     document.querySelectorAll('[data-mqtt-command]').forEach(button => {
       button.disabled = !ready || (button.dataset.mqttCommand === 'LIGAR'
@@ -903,7 +918,8 @@ window.App = {
 
   renderSessionEndControls() {
     const session = window.ChargingSimulator.getSnapshotSession();
-    const disabled = !window.SimClient.connected || !session || this._summaryShown;
+    const physical = session?.evse.stationId === 1;
+    const disabled = (!window.SimClient.connected && !physical) || !session || this._summaryShown;
     const completed = session?.status === 'finished';
     const bottom = document.getElementById('btn-end-charge');
     const top = document.getElementById('btn-stop-charge');
@@ -992,14 +1008,17 @@ window.App = {
     // A tela de monitoramento dispara a cada tick; sem esta guarda o resumo
     // seria reaberto (e a sessão encerrada de novo) a cada atualização.
     if (this._summaryShown) return;
+    const physical = window.ChargingSimulator.getSnapshotSession()?.evse.stationId === 1;
+    // O corte manual usa o tópico original do ESP, antes do envio ao backend.
+    if (physical) window.MqttBridge.cortarCarga();
     const data = window.ChargingSimulator.stopSession();
-    if (!data) return;
+    if (!data) {
+      if (physical) window.MqttBridge.registrar('Corte do ESP solicitado. Reconecte ao servidor e repita o encerramento da sessão.');
+      return;
+    }
     this._summaryShown = true;
     this.renderMqttControls();
     this.renderSessionEndControls();
-    // O relé físico pertence à estação 1. O corte direto também cobre a
-    // reconexão do navegador, que não é mais o dono original do WebSocket.
-    if (data.evse?.stationId === 1) window.MqttBridge.aplicarComandoRele('DESLIGAR');
     const station = window.StationManager.getSelectedStation();
     window.StationManager.updateStationStatus(station.id, 'available');
 

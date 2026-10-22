@@ -20,11 +20,19 @@ sem dependências novas.
    o identificador da sessão selecionada ao backend, em qualquer estação.
    Funcionam também após reconectar ou iniciar outra recarga. Se já estiver
    concluída, ambos mostram **Ver resumo e liberar estação**. Só a estação 1
-   envia também o corte ao relé físico. Comandos externos MQTT continuam
+   envia também **DESLIGAR ao tópico original `meu_projeto/tomada/comando`**,
+   antes de tentar encerrar no servidor. Comandos externos MQTT continuam
    restritos à estação física 1.
 
 Os botões de autorização ficam desabilitados quando não há conexão MQTT.
-O encerramento pelo site depende da conexão com o backend. A espera expira em
+O encerramento da sessão no site depende da conexão com o backend. O botão da
+Estação1 continua permitindo solicitar o corte físico se o WebSocket cair; nesse
+caso, reconecte e repita o encerramento para finalizar também o registro.
+Se o MQTT estiver offline, o pedido de DESLIGAR é salvo no navegador e reenviado
+na reconexão, inclusive após recarregar a página. Somente o desligamento é
+preservado; LIGAR não é enfileirado e fica bloqueado enquanto há corte pendente.
+Uma retomada automática antiga não pode religar após um corte manual; uma nova
+autorização é necessária. A espera de autorização expira em
 120 segundos e pode ser cancelada ou repetida. Repetir a autorização não gera
 uma nova cobrança. Cancelar a solicitação não estorna um Pix aprovado.
 
@@ -55,6 +63,13 @@ Comandos automáticos do motor (pausa/retomada por demanda e finalização) usam
 `meu_projeto/tomada/rele`, também assinado pelo firmware atualizado. Separar esse
 tráfego impede que uma suspensão automática encerre a sessão por engano.
 O tópico `meu_projeto/tomada/status` permanece para telemetria do hardware.
+
+O encerramento **manual** sempre usa `/comando`, para funcionar também com o ESP
+original que não assina `/rele`. Publica com QoS1 e sem retain. A confirmação do
+broker não comprova que o relé abriu: o totem mostra que o comando foi enviado
+e aguarda um status novo PARADO/DESLIGADO/OFF do ESP. Status retido não confirma
+um desligamento novo. Se o firmware não publicar status, a indicação continua
+aguardando confirmação, e o relé precisa ser conferido no equipamento.
 
 ## Limites do protótipo
 

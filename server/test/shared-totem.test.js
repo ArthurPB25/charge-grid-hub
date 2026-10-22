@@ -139,7 +139,8 @@ test('botões encerram uma recarga antiga ou concluída e continuam funcionando 
   const earlier = makeSession('earlier', 3, 'finished');
   const later = makeSession('later', 2, 'charging');
   const physical = makeSession('physical', 1, 'charging');
-  const sent = [], relays = [];
+  const sent = [], relays = [], topics = [];
+  let energized = true;
   const window = {
     addEventListener() {},
     SimClient: { connected: true, snapshot: { sessions: [earlier, later, physical] },
@@ -149,12 +150,18 @@ test('botões encerram uma recarga antiga ou concluída e continuam funcionando 
       getSelectedStation() { return { id: this.selectedStationId, name: `Estação ${this.selectedStationId}` }; },
       updateStationStatus() {}
     },
-    MqttBridge: { aplicarComandoRele: command => relays.push(command) },
     PricingEngine: { formatCurrency: value => String(value) },
     PaymentController: { cancelPayment() {} }
   };
   const context = vm.createContext({ window, document });
-  for (const file of ['charging.js', 'app.js']) vm.runInContext(readFileSync(new URL(`../../js/${file}`, import.meta.url), 'utf8'), context);
+  for (const file of ['sim/mqtt-bridge.js','charging.js', 'app.js']) vm.runInContext(readFileSync(new URL(`../../js/${file}`, import.meta.url), 'utf8'), context);
+  window.MqttBridge.ativo = window.MqttBridge.conectado = true;
+  window.MqttBridge.client = {connected:true,publish(topic,payload,options,callback){
+    topics.push(topic);relays.push(payload);
+    // ESP legado deste teste só assina o tópico original, não /rele.
+    if(topic==='meu_projeto/tomada/comando'&&payload==='DESLIGAR')energized=false;
+    callback?.();
+  }};
   const app = window.App;
   app.showScreen = screen => { app.currentScreen = screen; };
   for (const name of ['renderMqttControls', 'updateDemandBanner', 'updateSiteStrip', 'renderSegments', 'renderStations', 'updateStationTariff', 'cancelAuthorization', 'cancelarPix']) app[name] = () => {};
@@ -172,6 +179,7 @@ test('botões encerram uma recarga antiga ou concluída e continuam funcionando 
   top.handlers.click();
   assert.equal(sent.at(-1).payload.sessionId, 'earlier');
   assert.equal(relays.length, 0, 'estação simulada não corta o relé físico');
+  assert.equal(energized,true);
   assert.equal(top.disabled, true);
   window.SimClient.snapshot.sessions = [later, physical];
   app.returnToStations();
@@ -184,12 +192,17 @@ test('botões encerram uma recarga antiga ou concluída e continuam funcionando 
   app.openMonitoring('physical');
   window.SimClient.connected = false;
   app.renderSessionEndControls();
-  assert.equal(top.disabled, true);
-  assert.equal(bottom.disabled, true);
+  assert.equal(top.disabled, false, 'o corte físico continua acessível sem WebSocket');
+  assert.equal(bottom.disabled, false);
+  top.handlers.click();
+  assert.deepEqual(relays,['DESLIGAR']);
+  assert.equal(topics[0],'meu_projeto/tomada/comando');
+  assert.equal(energized,false,'botão físico corta o ESP legado mesmo com WebSocket fora');
+  assert.notEqual(app._summaryShown,true,'sem confirmação local de sessão encerrada quando backend caiu');
   window.SimClient.connected = true;
   app.renderSessionEndControls();
   assert.equal(top.disabled, false, 'reconexão reabilita a sessão selecionada');
   top.handlers.click();
   assert.equal(sent.at(-1).payload.sessionId, 'physical');
-  assert.deepEqual(relays, ['DESLIGAR']);
+  assert.deepEqual(relays, ['DESLIGAR','DESLIGAR']);
 });

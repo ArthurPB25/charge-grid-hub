@@ -783,6 +783,8 @@
 .mqtt-control-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .mqtt-control-actions .btn { flex: 1; }
 #btn-retry-authorization[hidden] { display: none; }
+[data-esp-stop-retry][hidden], [data-esp-stop-status][hidden] { display: none; }
+
 .mqtt-control-log {
   height: 100px;
   overflow: auto;
