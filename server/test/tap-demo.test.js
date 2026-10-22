@@ -70,8 +70,12 @@ test('InfiniteTap demo: R$1 canônico, pedido idempotente, celular exclusivo e l
 test('InfiniteTap demo: cancelamento/incompleto, prazo e estação ocupada não iniciam sessão', async t => {
   const f = await fixture(t);
   const order = await f.create(), phone = await f.claim(order);
-  assert.equal((await f.call(`/orders/${order.id}/result`, { order_id: order.id, handle: 'grupo' }, phone.token)).data.state, 'not-confirmed');
-  assert.equal((await f.call(`/orders/${order.id}/result`, evidence(order), phone.token)).data.state, 'not-confirmed');
+  assert.equal((await f.call(`/orders/${order.id}/result`, { order_id: order.id, handle: 'grupo' }, phone.token)).data.state, 'review');
+  assert.equal((await f.call(`/orders/${order.id}/result`, evidence(order,{warning:'Operação interrompida'}), phone.token)).data.state, 'review');
+  assert.equal((await f.call(`/orders/${order.id}/close-review`, {checked:true}, order.token)).status,404);
+  assert.equal((await f.call(`/orders/${order.id}/close-review`, {}, phone.token)).status,409);
+  await f.call(`/orders/${order.id}/close-review`, {checked:true}, phone.token);
+  assert.equal((await f.call(`/orders/${order.id}/close-review`, {checked:true}, phone.token)).data.state,'not-confirmed');
   const cancel = await f.create(), p2 = await f.claim(cancel);
   await f.call(`/orders/${cancel.id}/cancel`, {}, cancel.token);
   assert.equal((await f.call(`/orders/${cancel.id}/ready`, {}, p2.token)).status, 409);
@@ -81,6 +85,20 @@ test('InfiniteTap demo: cancelamento/incompleto, prazo e estação ocupada não 
   const busy = await f.create(), p4 = await f.claim(busy); f.evses[1].status = 'Charging';
   assert.equal((await f.call(`/orders/${busy.id}/result`, evidence(busy), p4.token)).data.state, 'blocked');
   assert.equal(f.starts(), 0);
+});
+
+test('InfiniteTap: retorno incompleto não encerra pedido e confirmação posterior não inicia carga', async t=>{
+  const f=await fixture(t),order=await f.create(),phone=await f.claim(order);
+  const first=await f.call(`/orders/${order.id}/result`,{order_id:order.id,handle:'grupo'},phone.token);
+  assert.equal(first.data.state,'review'); assert.equal(first.data.diagnostic.reason,'incomplete-result');
+  assert.equal((await f.call('/orders',checkout,null,randomUUID())).status,409);
+  assert.equal((await f.call(`/orders/${order.id}/connect`,{},order.token)).status,409);
+  assert.equal((await f.call(`/orders/${order.id}/cancel`,{},order.token)).data.state,'review');
+  f.advance(600001);
+  const confirmed=await f.call(`/orders/${order.id}/result`,evidence(order),phone.token);
+  assert.equal(confirmed.data.state,'paid'); assert.equal(confirmed.data.diagnostic,null); assert.equal(f.starts(),0);
+  await f.call(`/orders/${order.id}/result`,evidence(order,{warning:'retorno atrasado'}),phone.token);
+  assert.equal((await f.call('/orders/'+order.id,null,order.token)).data.state,'paid');
 });
 
 test('InfiniteTap demo: desativado por padrão e reserva entre pedidos pendentes', async t => {

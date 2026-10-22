@@ -40,7 +40,7 @@ window.TapDemo = {
     document.getElementById('tap-address').textContent = location.origin.includes('localhost') || location.hostname === '127.0.0.1'
       ? 'No celular, use http://IP-DO-COMPUTADOR:' + (location.port || '80') + ' na mesma rede Wi-Fi.' : location.origin;
     document.getElementById('tap-connect').hidden = this.order.state !== 'paid';
-    document.getElementById('tap-order-status').textContent = this.order.state === 'paid'
+    document.getElementById('tap-order-status').textContent = this.order.state === 'review' ? this.order.message : this.order.state === 'paid'
       ? 'Pagamento recebido. Conecte o cabo ao veículo e toque em Conectar para iniciar a recarga.' : this.terminalMode
       ? 'Aproxime seu cartão do celular do estabelecimento quando o InfinitePay solicitar. Valor: R$ 1,00.'
       : 'Aguardando o celular. Informe o endereço do servidor e este código no app ChargeGrid.';
@@ -76,7 +76,7 @@ window.TapDemo = {
     try {
       const data = await this.request(`/orders/${order.id}/cancel`, { method: 'POST', headers: { 'X-Tap-Token': order.token } });
       if (revision !== this.revision || this.order?.id !== order.id) return;
-      if (data.state === 'paid') { this.order = { ...order, ...data }; this.display(); return; }
+      if (['paid', 'review'].includes(data.state)) { this.order = { ...order, ...data }; this.display(); return; }
       this.forget();
       window.App.returnToStations(data.state === 'released' ? 'Recarga já iniciada. Confira a estação.' : 'Pedido encerrado. Cancelar o pedido não estorna um pagamento no InfinitePay.');
     } catch (e) {
@@ -101,7 +101,12 @@ window.TapDemo = {
         this.display();
         return;
       }
-      if (data.state !== 'pending') {
+      if (data.state === 'review') {
+        this.order = { ...order, ...data };
+        localStorage.setItem('chargegrid-tap-order', JSON.stringify(this.order));
+        this.display();
+      }
+      if (!['pending', 'review'].includes(data.state)) {
         const message = data.message || 'Pedido encerrado ou expirado. Confira o InfinitePay antes de pagar novamente.';
         this.forget(); window.App.returnToStations(message); return;
       }

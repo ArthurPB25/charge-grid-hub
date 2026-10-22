@@ -6,8 +6,8 @@ android {
         applicationId 'br.com.chargegrid.taptest'
         minSdk 30
         targetSdk 35
-        versionCode 8
-        versionName '0.8'
+        versionCode 9
+        versionName '0.9'
     }
     // InfiniteTap requires developer options disabled on the physical phone.
     buildTypes { debug { debuggable false } }

@@ -1,17 +1,12 @@
 import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { validSessionConfig } from './sim/validation.js';
+import { analyzeTapResult } from './tap-result.js';
 const { vehicles } = createRequire(import.meta.url)('../data/mock-data.js');
 
 // Presentation-only evidence from a trusted group's app, not bank verification.
 export function candidateTapApproval(data = {}) {
-  const clean = v => typeof v === 'string' && v.length <= 200 && !/[\x00-\x1f\x7f]/.test(v);
-  if (!['nsu', 'aut', 'card_brand'].every(k => clean(data[k]) && data[k].trim())) return false;
-  if (!/^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(data.nsu) || !/^[a-z\d]{1,40}$/i.test(data.aut)) return false;
-  if (['warning', 'error', 'error_message', 'error_code', 'cancelled', 'canceled'].some(k => data[k] != null && data[k] !== '' && data[k] !== false && data[k] !== 'false')) return false;
-  if (data.success != null && ![true, 'true'].includes(data.success)) return false;
-  if (data.status != null && !['approved', 'success', 'successful', 'paid', 'completed'].includes(data.status)) return false;
-  return true;
+  return analyzeTapResult(data).confirmed;
 }
 
 export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.now, terminalKey = process.env.TAP_TERMINAL_KEY || '', merchantHandle = process.env.TAP_TERMINAL_HANDLE || '' }) {
@@ -25,7 +20,7 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
   const update = order => { if (order.state === 'pending' && now() >= order.expiresAt) order.state = 'expired'; return order; };
   const publicOrder = o => ({ id: o.id, code: o.code, state: update(o).state, stationId: o.config.stationId,
     vehicle: `${o.config.vehicle.brand} ${o.config.vehicle.model}`, amountCents: 100, method: o.method,
-    expiresAt: o.expiresAt, sessionId: o.sessionId || null, message: o.message || null, evidence: 'local-callback-demo' });
+    expiresAt: o.expiresAt, sessionId: o.sessionId || null, message: o.message || null, diagnostic: o.diagnostic || null, evidence: 'local-callback-demo' });
   const available = id => engine.snapshot().evses.find(e => e.stationId === id)?.status === 'Available';
   const lookup = (id, token, phone = false) => {
     const order = orders.get(id);
@@ -77,7 +72,7 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
     }
     if (orders.size >= 500) throw fault('Limite de pedidos de demonstração atingido.', 503);
     if (!available(p.stationId)) throw fault('Estação indisponível.', 409);
-    if ([...orders.values()].some(o => ['pending', 'paid'].includes(update(o).state) && o.config.stationId === p.stationId)) throw fault('Já existe um pedido pendente para esta estação.', 409);
+    if ([...orders.values()].some(o => ['pending', 'paid', 'review'].includes(update(o).state) && o.config.stationId === p.stationId)) throw fault('Já existe um pedido pendente para esta estação.', 409);
     let code;
     do { code = randomBytes(4).toString('hex').toUpperCase(); } while ([...orders.values()].some(o => o.code === code));
     const order = { id: randomUUID(), code, config, method: p.method, key, fingerprint,
@@ -111,9 +106,11 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
     const order = lookup(req.params.id, req.get('X-Tap-Token'), true);
     const data = req.body || {};
     if (data.order_id !== order.id || data.handle !== order.handle) throw fault('Retorno não corresponde ao pedido/conta.');
-    if (order.state !== 'pending') return res.json(publicOrder(order));
-    if (!candidateTapApproval(data)) {
-      order.state = 'not-confirmed'; order.message = 'Pagamento não confirmado pelo retorno local. Nenhuma recarga foi iniciada.';
+    if (!['pending', 'review'].includes(order.state)) return res.json(publicOrder(order));
+    const result = analyzeTapResult(data);
+    if (!result.confirmed) {
+      order.state = 'review'; order.message = result.message; order.diagnostic = result.diagnostic;
+      console.warn('InfiniteTap: retorno exige conferência', JSON.stringify({ orderId: order.id, ...result.diagnostic }));
       return res.json(publicOrder(order));
     }
     const nsu = data.nsu.toLowerCase();
@@ -122,7 +119,7 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
       order.state = 'blocked'; order.message = 'Estação indisponível. Confira o pagamento com o operador; não pague novamente.';
       return res.json(publicOrder(order));
     }
-    order.state = 'paid'; order.nsu = nsu;
+    order.state = 'paid'; order.nsu = nsu; delete order.diagnostic;
     order.message = 'Pagamento recebido. Volte ao totem e toque em Conectar para iniciar a recarga.';
     usedNsu.set(nsu, order.id);
     res.json(publicOrder(order));
@@ -144,5 +141,14 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
     if (order.state !== 'pending' || !available(order.config.stationId)) throw fault('Pedido expirado, encerrado ou estação indisponível. Não inicie o pagamento.', 409);
     res.json(publicOrder(order));
   }));
-  return { setBeforeStart(fn) { beforeStart = fn; }, canWatch(id, token) { try { return ['pending', 'paid'].includes(lookup(id, token).state); } catch { return false; } } };
+  app.post('/api/tap-demo/orders/:id/close-review', route((req, res) => {
+    const order = lookup(req.params.id, req.get('X-Tap-Token'), true);
+    if (req.body?.checked !== true) throw fault('Confira a transação no InfinitePay antes de encerrar.', 409);
+    if (order.state === 'not-confirmed') return res.json(publicOrder(order));
+    if (order.state !== 'review') throw fault('Pedido não está aguardando conferência.', 409);
+    order.state = 'not-confirmed';
+    order.message = 'Acompanhamento encerrado pelo estabelecimento. Isso não cancela nem estorna um pagamento.';
+    res.json(publicOrder(order));
+  }));
+  return { setBeforeStart(fn) { beforeStart = fn; }, canWatch(id, token) { try { return ['pending', 'paid', 'review'].includes(lookup(id, token).state); } catch { return false; } } };
 }

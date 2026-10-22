@@ -39,6 +39,17 @@ test('InfiniteTap totem: retorno não confirmado nunca exibe recarga iniciada', 
   await client.poll(); assert.equal(client.order, null); assert.deepEqual(messages, ['Pagamento não confirmado']);
 });
 
+test('InfiniteTap totem: retorno incompleto mantém acompanhamento e aceita confirmação posterior', async () => {
+  const {client,messages,timers,steps} = setup();
+  let state = 'review';
+  client.request = async () => ({state, message:'InfinitePay: falha na leitura', stationId:2,vehicle:'Carro'});
+  await client.poll();
+  assert.equal(client.order.state,'review'); assert.equal(messages.length,0); assert.equal(timers.length,1);
+  assert.equal(steps.at(-1),'tap');
+  state='paid'; await client.poll();
+  assert.equal(client.order.state,'paid'); assert.equal(steps.at(-1),'tap-confirmed'); assert.equal(messages.length,0);
+});
+
 test('InfiniteTap totem: 404 após reinício encerra acompanhamento e orienta conferir pagamento', async () => {
   const { client, messages, timers } = setup();
   client.request = async () => { throw Object.assign(new Error('Pedido inexistente'), { status: 404 }); };

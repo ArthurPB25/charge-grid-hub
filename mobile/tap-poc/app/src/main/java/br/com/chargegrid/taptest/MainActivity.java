@@ -89,7 +89,7 @@ public class MainActivity extends Activity {
                 .setPositiveButton("Conferi · Digitar novo código", (d,w) -> { resetOrder(); focusCode(); }).show();
         });
         TextView copy = new TextView(this);
-        copy.setText("Configuração do estabelecimento · v0.8\nO pagamento de R$ 1,00 é real. Confirmação por retorno local do InfiniteTap.");
+        copy.setText("Configuração do estabelecimento · v0.9\nO pagamento de R$ 1,00 é real. Confirmação por retorno local do InfiniteTap.");
         layout.addView(copy);
         label(layout, "1. InfiniteTag da conta, sem $");
         handle = new EditText(this); handle.setSingleLine(true); handle.setHint("Ex.: minha_conta");
@@ -122,15 +122,21 @@ public class MainActivity extends Activity {
             .setMessage("Confira a transação no InfinitePay antes de encerrar. Este botão não cancela nem estorna um pagamento e não libera recarga.")
             .setNegativeButton("Voltar", null).setPositiveButton("Encerrar acompanhamento", (d,w) -> {
                 if (prefs.contains("release_payload")) { status.setText("Reenvie o retorno pendente antes de encerrar o acompanhamento."); return; }
+                if ("review".equals(prefs.getString("result_state", ""))) {
+                    final String base = prefs.getString("linked_server", ""), id = prefs.getString("order", ""), token = prefs.getString("phone_token", "");
+                    background(() -> post(base, "/api/tap-demo/orders/" + id + "/close-review", new JSONObject().put("checked", true), token), response -> resetOrder());
+                    return;
+                }
                 resetOrder();
             }).show(); });
         start.setOnClickListener(v -> prepare());
         connect.setOnClickListener(v -> claim());
-        refresh(); receive(getIntent());
+        refresh();
         if (prefs.contains("terminal_secret") && prefs.contains("terminal_handle") && prefs.contains("terminal_server")) {
             if (!prefs.contains("order")) handle.setText(prefs.getString("terminal_handle", ""));
             toggleTerminal();
         }
+        receive(getIntent());
     }
 
     @Override protected void onResume() {
@@ -231,7 +237,8 @@ public class MainActivity extends Activity {
     private void resetOrder() {
         prefs.edit().remove("order").remove("nonce").remove("result").remove("phone_token")
             .remove("linked_server").remove("release_payload").remove("launched")
-            .remove("order_method").remove("order_label").remove("claim_scope").remove("claim_key").remove("claim_code").apply();
+            .remove("order_method").remove("order_label").remove("claim_scope").remove("claim_key").remove("claim_code")
+            .remove("callback_fingerprint").remove("result_state").apply();
         setIntent(new Intent(this, MainActivity.class)); orderCode.setText(""); refresh();
     }
     private void focusCode() {
@@ -296,7 +303,6 @@ public class MainActivity extends Activity {
                 !order.equals(single(uri, "order_id"))) {
                 status.setText("Retorno ignorado: não corresponde ao teste atual. Confira o InfinitePay."); return;
             }
-            if (prefs.contains("result")) { refresh(); return; }
             String merchant = single(uri, "handle");
             if (!prefs.getString("handle", "").equals(merchant)) {
                 status.setText("Retorno de conta diferente ou sem identificação. Confira a conta no InfinitePay; nenhuma recarga foi liberada."); return;
@@ -308,9 +314,14 @@ public class MainActivity extends Activity {
                 String value = single(uri, key);
                 if (value != null) payload.put(key, value);
             }
-            prefs.edit().putString("result", message.toString()).apply(); refresh();
+            String fingerprint = payload.toString();
+            if (fingerprint.equals(prefs.getString("callback_fingerprint", ""))) { refresh(); if (prefs.contains("release_payload")) sendResult(); return; }
+            SharedPreferences.Editor received = prefs.edit().putString("callback_fingerprint", fingerprint).putString("result", message.toString());
+            if (prefs.contains("phone_token")) received.putString("release_payload", fingerprint);
+            if (!received.commit()) { status.setText("Não foi possível salvar o retorno. Confira o pagamento no InfinitePay."); return; }
+            refresh();
             if (prefs.contains("phone_token")) {
-                prefs.edit().putString("release_payload", payload.toString()).apply(); sendResult();
+                sendResult();
             }
         } catch (Exception e) {
             status.setText("Retorno inválido. Confira o teste no InfinitePay; nenhuma recarga foi liberada.");
@@ -430,7 +441,9 @@ public class MainActivity extends Activity {
                 : "released".equals(state) ? "Recarga já iniciada pelo totem."
                 : response.optString("message", "Pagamento não confirmado ou pedido encerrado. Nenhuma nova recarga foi iniciada.");
             if ("null".equals(message)) message = "Pedido encerrado. Confira o InfinitePay; não repita o pagamento.";
-            prefs.edit().remove("release_payload").putString("result", message).apply(); refresh();
+            // A newer callback may have arrived while this request was in flight.
+            if (!payload.equals(prefs.getString("release_payload", ""))) { sendResult(); return; }
+            prefs.edit().remove("release_payload").putString("result_state", state).putString("result", message).apply(); refresh();
             if (listening && ("paid".equals(state) || "released".equals(state))) {
                 resetOrder(); status.setText(message + "\nAguardando o próximo pedido do totem."); scheduleTerminal();
             }

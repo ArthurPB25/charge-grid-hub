@@ -1,8 +1,8 @@
-# Maquininha ChargeGrid — InfiniteTap v0.8
+# Maquininha ChargeGrid — InfiniteTap v0.9
 
 ## Uso no estabelecimento
 
-Instale o APK privado `mobile/tap-poc/build/local/chargegrid-maquininha-v0.8.apk`
+Instale o APK privado `mobile/tap-poc/build/local/chargegrid-maquininha-v0.9.apk`
 por cima da versão anterior e abra o app. Ele já contém o servidor do Render,
 a conta `arthur-primo` e a autorização do terminal. Nenhum campo precisa ser
 preenchido. Mantenha este aplicativo aberto no celular fixo, com o InfinitePay
@@ -50,11 +50,24 @@ independente. Não há captura de cartão ou implementação NFC própria.
   pagamento. A autorização é exclusiva de um dispositivo por execução.
 - Cancelar ou limpar acompanhamento não estorna dinheiro. Falha financeira ou
   resultado ambíguo exigem conferência pelo estabelecimento no InfinitePay.
+- Retorno incompleto ou erro entra em `review`, sem encerrar automaticamente
+  o pedido nem permitir Conectar. O totem mostra o motivo do InfinitePay ou quais
+  campos obrigatórios faltaram. Um retorno válido posterior da mesma cobrança
+  pode confirmar o pagamento; não é aberta outra cobrança para recuperar.
+- O app aceita atualização de callback e salva resultado/payload atomicamente.
+  O estabelecimento pode encerrar `review` após conferir a transação, pelo botão
+  Encerrar acompanhamento. Isso não é confirmação financeira nem estorno.
+- Os logs do servidor registram diagnóstico limitado (motivo, nomes de campos
+  ausentes e erro do provedor), sem URI completa, token, NSU, autorização ou CPF.
 - Não há controle remoto do S21 FE neste computador; instalação e primeiro teste
   físico devem ser feitos no aparelho, começando por cancelamento sem cartão.
 
 ## APK verificado
 
-Versão 0.8 / código 8, Android mínimo 11, assinatura APK v3 válida com o mesmo
+Versão 0.9 / código 9, Android mínimo 11, assinatura APK v3 válida com o mesmo
 certificado das versões anteriores.
-SHA256: 16708800f8f52961087743c2069770494a9100c4d3b829c4b78b5fbda9c566d7.
+SHA256: 4ca87e8f4ad874d2c40f32b515bccff0fa76fc864f2f02e36a9ed7446421efc1.
+O erro de fechamento automático foi reproduzido nos testes de retorno incompleto.
+A causa do retorno imediato do InfinitePay no S21 FE ainda depende do diagnóstico
+específico de uma nova execução sem pagamento. Não presumir que a causa externa
+foi corrigida apenas por tratar melhor o callback.
