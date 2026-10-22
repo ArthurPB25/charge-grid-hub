@@ -99,6 +99,8 @@ const ChargeSession = {
       },
 
       _bill(kWh, price, posto) {
+        price = this.lockedRate ?? price;
+        posto = this.lockedPosto ?? posto;
         if (!(kWh > 0) || !(price > 0)) return;
         this.cost += kWh * price;
         let segment = this.rateSegments.find(s => s.posto === posto);

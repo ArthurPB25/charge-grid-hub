@@ -40,10 +40,12 @@ test('WebSocket rejeita parâmetros inválidos e continua aceitando comandos vá
 test('WebSocket usa o catálogo do servidor e recusa estação ocupada antes da autorização', async t => {
   const { command, authorization } = await fixture(t);
   const modified = { ...vehicles[0], brand: '<script>inválido</script>', batteryCapacity: 0, maxChargePower: { ac: 999 } };
-  await command('start-session', { stationId: 2, vehicle: modified, startSoc: .2 }, m => m.type === 'authorization' && m.data.status === 'waiting');
+  await command('start-session', { stationId: 2, vehicle: modified, startSoc: .2, lockedRate: .01, lockedPosto: 'invalid' }, m => m.type === 'authorization' && m.data.status === 'waiting');
   await command('mqtt-command', { command: 'LIGAR' }, m => m.type === 'authorization' && m.data.status === 'approved');
   assert.equal(SiteModel.sessions[0].vehicle.batteryCapacity, vehicles[0].batteryCapacity);
   assert.equal(SiteModel.sessions[0].vehicle.brand, 'BYD');
+  assert.ok(SiteModel.sessions[0].lockedRate >= 2);
+  assert.notEqual(SiteModel.sessions[0].lockedPosto,'invalid');
   await command('start-session', { stationId: 2, vehicle: vehicles[0] }, m => m.type === 'authorization' && m.data.status === 'error');
   assert.equal(authorization.pending, null);
 });

@@ -654,6 +654,7 @@ window.App = {
       document.getElementById('pix-qr-img').src = `data:image/png;base64,${cobranca.qrCodeBase64}`;
       document.getElementById('pix-codigo').value = cobranca.qrCode || '';
       document.getElementById('pix-valor').textContent = window.PricingEngine.formatCurrency(cobranca.amount ?? valor);
+      document.getElementById('pix-energy-rate').textContent = 'Preço da energia preservado nesta recarga: ' + window.PricingEngine.formatCurrency(cobranca.lockedRate ?? window.PaymentController.orderData?.estimate?.rate) + '/kWh (custo estimado separado do pagamento de R$ 1,00).';
 
       const statusEl = document.getElementById('pix-status');
       statusEl.textContent = cobranca.sandbox ? 'Pix de teste (sandbox): não representa pagamento real.' : 'Aguardando pagamento real de R$ 1,00…';
@@ -884,7 +885,7 @@ window.App = {
     document.getElementById('stat-current').textContent =
       `${data.commandedA} A` + (data.currentA ? ` · ${data.currentA.toFixed(1)} A medidos` : '');
     document.getElementById('stat-price').textContent =
-      window.PricingEngine.formatCurrency(window.PricingEngine.getCurrentRate()) + '/kWh';
+      window.PricingEngine.formatCurrency(data.lockedRate ?? window.PricingEngine.getCurrentRate()) + '/kWh';
     document.getElementById('stat-target').textContent = Math.round((data.socTarget || 0.8) * 100) + '%';
 
     const sessao = window.ChargingSimulator.getSnapshotSession();

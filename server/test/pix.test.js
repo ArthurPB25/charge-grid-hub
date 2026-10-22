@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { once } from 'node:events';
 import { attachPixRoutes, normalizePixStatus } from '../pix.js';
+import Pricing from '../sim/smart-pricing.js';
 
 const checkout = { stationId: 2, vehicleId: 'dolphin', startSoc: .2, targetSoc: .8 };
 const session = { stationId: 2, vehicle: { id: 'dolphin' }, startSoc: .2, targetSoc: .8 };
@@ -108,4 +109,16 @@ test('Pix produção usa R$1, e-mail informado e não envia APRO de sandbox', as
   assert.equal(sent.transactions.payments[0].amount, '1.00');
   assert.deepEqual(sent.payer, { email: 'payer@example.com' });
   assert.equal((await f.create({ valor: 1, email: 'payer@example.com' }, 'missing-checkout-0001')).status, 400);
+});
+
+test('Pix preserva preço de energia do pedido antes da aprovação em outra faixa', async t => {
+  const original = Pricing.posto;
+  try {
+    Pricing.posto=()=> 'fora';
+    const { gateway,create }=await fixture(t,async()=>({ok:true,json:async()=>provider({status:'processed',status_detail:'accredited',total_amount:'1.00'})}));
+    assert.equal((await (await create()).json()).lockedRate,2);
+    Pricing.posto=()=> 'ponta';
+    const consume=await gateway.verify('ORDER-TEST',session);
+    assert.equal(consume.lockedRate,2);assert.equal(consume.lockedPosto,'fora');
+  } finally {Pricing.posto=original;}
 });

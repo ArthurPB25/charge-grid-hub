@@ -7,6 +7,8 @@
  */
 const SiteConfig = {
   name: 'Shopping Central — Estacionamento G2',
+  // Referência comercial AC: Volvo Brasil (jun/2026), não tarifa da distribuidora.
+  pricing: { baseKWh: 2.00, additionalSessionRate: 0.05, scheduleFactors: { fora: 1, inter: 1.05, ponta: 1.12 } },
 
   // Demanda contratada junto à concessionária (kW). Estourar este valor
   // dispara a proteção e gera multa por ultrapassagem.

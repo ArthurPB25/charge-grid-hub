@@ -80,7 +80,7 @@ export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, au
         case 'start-session': {
           const revision = ++requestRevision;
           const vehicle = vehicles.find(v => v.id === p.vehicle?.id);
-          const config = { ...p, vehicle };
+          const config = { ...p, vehicle, lockedRate: undefined, lockedPosto: undefined };
           if (SiteModel.getEvseByStation(p.stationId)?.status !== 'Available' || !validSessionConfig(config) || !['pix', 'demo', undefined].includes(p.paymentMethod)) {
             notifyAuthorization({ status: 'error', message: 'Selecione uma estação e um veículo válidos.' });
             break;
@@ -90,6 +90,8 @@ export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, au
             try {
               if (!pix) throw new Error('Validação do pagamento indisponível.');
               consumePayment = await pix.verify(p.paymentId, config);
+              config.lockedRate = consumePayment.lockedRate;
+              config.lockedPosto = consumePayment.lockedPosto;
             } catch (error) {
               if (revision === requestRevision) notifyAuthorization({ status: 'error', message: error.message });
               break;

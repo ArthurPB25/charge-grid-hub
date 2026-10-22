@@ -1,6 +1,14 @@
 # ChargeGrid Hub
 
-Tótem de recarga para eletropostos comerciais, feito sobre o carregador residencial **GoodWe HCA G2**. Adiciona ao carregador tudo que ele não tem de fábrica: cobrança, tarifação dinâmica, controle de demanda e um painel de operação — sem alterar o hardware do carregador.
+Tótem de recarga para eletropostos comerciais, feito sobre o carregador residencial **GoodWe HCA G2**. Adiciona cobrança, tarifa em patamares, controle de demanda e um painel de operação — sem alterar o hardware do carregador.
+
+Preço-base comercial AC: R$2,00/kWh, como referência de mercado. Intermediário:
+R$2,10; ponta: R$2,24, com adicionais definidos pelo projeto. Cada veículo ativo
+adicional acrescenta 5% da base (R$0,10) ao patamar, atualizado somente ao iniciar
+uma recarga. O patamar não cai na saída de carros e só volta à base quando todas
+as estações ficam livres. O preço aceito no pedido é preservado em cada sessão.
+Solar e restrição de rede afetam potência, sem alterar preço. Fontes e limites:
+[PRECOS-DE-REFERENCIA.md](PRECOS-DE-REFERENCIA.md).
 
 Projeto do desafio **1CC EV Challenge — GoodWe + FIAP 2026**.
 

@@ -92,6 +92,7 @@ window.ChargingSimulator = {
       // A tela antiga espera 'completed' para abrir o resumo da sessão.
       status: s.status === 'finished' ? 'completed' : s.status,
       rateSegments: s.rateSegments,
+      lockedRate: s.lockedRate,
       vehicle: s.vehicle,
       evse: s.evse
     };

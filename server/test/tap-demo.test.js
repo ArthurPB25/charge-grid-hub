@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import express from 'express';
 import { attachTapDemoRoutes, candidateTapApproval } from '../tap-demo.js';
+import Pricing from '../sim/smart-pricing.js';
 import { createRequire } from 'node:module';
 import SimEngine, { SimClock, SiteModel } from '../sim/engine.js';
 const { vehicles } = createRequire(import.meta.url)('../../data/mock-data.js');
@@ -172,6 +173,19 @@ test('InfiniteTap demo: claim legado continua exclusivo e recuperação expirada
   const body = { code: fresh.code, handle: 'grupo', claimKey: randomUUID() };
   await f.call('/claim', body); f.advance(600001);
   assert.equal((await f.call('/claim', body)).status, 404);
+});
+
+test('InfiniteTap preserva preço registrado no pedido mesmo após mudança de faixa', async t => {
+  const original=Pricing.posto;
+  try {
+    Pricing.posto=()=> 'fora';
+    const f=await fixture(t,true,true),order=await f.create(),phone=await f.claim(order);
+    assert.equal(order.lockedRate,2);Pricing.posto=()=> 'ponta';
+    const r=await f.call(`/orders/${order.id}/result`,evidence(order),phone.token);
+    assert.equal(r.data.state,'paid');
+    const connected=await f.call('/orders/'+order.id+'/connect',{},order.token);r.data.sessionId=connected.data.sessionId;
+    assert.equal(SimEngine.getUserSession(r.data.sessionId).lockedRate,2);
+  } finally {Pricing.posto=original;}
 });
 
 test('celular fixo: autenticação, fila, recuperação e exclusividade sem cobrar ao receber', async t => {

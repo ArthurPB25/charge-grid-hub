@@ -142,7 +142,10 @@ const SimEngine = {
         ambient: true
       });
       session.elapsedSim = 600 + Math.random() * 2400;
+      session.lockedRate = SmartPricing.quoteNextSession();
+      session.lockedPosto = SmartPricing.posto();
       SiteModel.addSession(session);
+      SmartPricing.sessionStarted();
 
       const tag = this.ambientTags[i % this.ambientTags.length];
       OcppClient.authorize(tag, evse);
@@ -163,10 +166,13 @@ const SimEngine = {
     });
     session.id = `TOT-${randomUUID()}`;
     session.actualStartedAt = new Date().toISOString();
+    session.lockedRate = finiteRange(config.lockedRate, .01, 100) ? config.lockedRate : SmartPricing.quoteNextSession();
+    session.lockedPosto = config.lockedPosto || SmartPricing.posto();
     session.paymentMethod = ['pix', 'tap-demo'].includes(config.paymentMethod) ? config.paymentMethod : 'demo';
     if (session.paymentMethod === 'tap-demo') { session.paymentAmount = 1; session.paymentEvidence = 'local-callback-demo'; }
 
     SiteModel.addSession(session);
+    SmartPricing.sessionStarted();
     this.userSession = session;
 
     const tag = config.idTag || 'CG-TOTEM-01';
@@ -237,7 +243,7 @@ const SimEngine = {
     const socNow = (batteryLevel == null ? 20 : batteryLevel) / 100;
     const socTarget = targetSoc != null ? targetSoc : 0.8;
     if (socTarget < socNow) return null;
-    const rate = SmartPricing.currentPrice();
+    const rate = SmartPricing.quoteNextSession();
     const capacity = vehicle.batteryCapacity;
 
     const energyBattery = Math.max(0, socTarget - socNow) * capacity;
@@ -369,6 +375,8 @@ const SimEngine = {
       paymentMethod: session.paymentMethod || 'demo',
       paymentAmount: session.paymentAmount,
       paymentEvidence: session.paymentEvidence,
+      lockedRate: session.lockedRate,
+      lockedPosto: session.lockedPosto,
       socStart: session.socStart,
       soc: session.soc,
       socTarget: session.socTarget,

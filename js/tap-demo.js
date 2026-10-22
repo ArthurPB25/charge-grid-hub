@@ -37,6 +37,7 @@ window.TapDemo = {
     document.getElementById('tap-code').textContent = this.order.code;
     document.getElementById('tap-paid-station').textContent = `Estação ${this.order.stationId} · ${this.order.vehicle}`;
     document.getElementById('tap-order-station').textContent = `Estação ${this.order.stationId} · ${this.order.vehicle}`;
+    if (this.order.lockedRate != null) document.getElementById('tap-order-station').textContent += ` · Energia estimada a R$ ${this.order.lockedRate.toFixed(2).replace('.', ',')}/kWh, preço preservado`;
     document.getElementById('tap-address').textContent = location.origin.includes('localhost') || location.hostname === '127.0.0.1'
       ? 'No celular, use http://IP-DO-COMPUTADOR:' + (location.port || '80') + ' na mesma rede Wi-Fi.' : location.origin;
     document.getElementById('tap-connect').hidden = this.order.state !== 'paid';

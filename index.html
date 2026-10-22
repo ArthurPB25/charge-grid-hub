@@ -232,7 +232,7 @@
             <ul>
             <li>Integração Pix via Mercado Pago (requer credenciais configuradas)</li>
             <li>Controle Dinâmico de Demanda com escrita Modbus simulada</li>
-              <li>Tarifação dinâmica pelas três variáveis do Smart Pricing</li>
+              <li>Tarifa em patamares por entrada de veículos, preservada na sessão</li>
             <li>Mensagens Modbus RS-485 e OCPP 1.6J simuladas</li>
               <li>Simulação física da recarga com múltiplas sessões simultâneas</li>
             </ul>
@@ -326,6 +326,7 @@
             <div class="pix-valor">
               Cobrança da apresentação: <strong id="pix-valor">—</strong>
             </div>
+            <p id="pix-energy-rate" class="pending-text"></p>
             <div class="pix-status" id="pix-status">Aguardando pagamento…</div>
           </div>
 
@@ -411,7 +412,7 @@
             <div class="stat-value" id="stat-current">— A</div>
           </div>
           <div class="stat-box">
-            <div class="stat-label">Preço Agora</div>
+            <div class="stat-label">Preço aceito nesta recarga</div>
             <div class="stat-value text-primary" id="stat-price">R$ 0,00</div>
           </div>
           <div class="stat-box">

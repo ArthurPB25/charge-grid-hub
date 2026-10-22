@@ -604,7 +604,7 @@ class AdminDashboard {
               <span class="value" id="billing-pix">${porPix} de ${sessoes}</span>
             </div>
             <div class="tariff-row kind-total">
-              <span class="label">Preço praticado agora</span>
+              <span class="label">Patamar atual da tarifa</span>
               <span class="value" id="billing-current-rate">${window.PricingEngine.formatCurrency(window.PricingEngine.getCurrentRate())}/kWh</span>
             </div>
           </div>
@@ -736,8 +736,9 @@ class AdminDashboard {
     sec.innerHTML = `
       <div class="dashboard-row">
         <div class="card-panel">
-          <h2 class="card-title">Composição do preço agora</h2>
+          <h2 class="card-title">Composição do patamar atual</h2>
           <div class="tariff-breakdown" id="pricingBreakdown"></div>
+          <p>O patamar só aumenta ao iniciar uma nova recarga. A saída de um veículo não reduz a tarifa; ela volta à base da faixa quando todas as estações ficam livres. Cada cliente mantém o preço aceito no seu pedido.</p>
 
           <h2 class="card-title" style="margin-top:28px">Postos da Tarifa Branca</h2>
           <div class="timeline-bar" id="postoTimeline"></div>
@@ -768,7 +769,7 @@ class AdminDashboard {
     alvo.innerHTML = window.PricingEngine.getBreakdown().map(linha => {
       const valor = linha.kind === 'factor'
         ? `× ${linha.factor.toFixed(3)}`
-        : `${linha.value < 0 ? '−' : ''}R$ ${Math.abs(linha.value).toFixed(4)}`;
+        : `${linha.value < 0 ? '−' : ''}R$ ${Math.abs(linha.value).toFixed(2)}`;
       return `
         <div class="tariff-row kind-${linha.kind}">
           <span class="label">${linha.label}</span>

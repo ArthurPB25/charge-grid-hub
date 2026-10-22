@@ -2,6 +2,7 @@ import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypt
 import { createRequire } from 'node:module';
 import { validSessionConfig } from './sim/validation.js';
 import { analyzeTapResult } from './tap-result.js';
+import SmartPricing from './sim/smart-pricing.js';
 const { vehicles } = createRequire(import.meta.url)('../data/mock-data.js');
 
 // Presentation-only evidence from a trusted group's app, not bank verification.
@@ -20,7 +21,7 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
   const update = order => { if (order.state === 'pending' && now() >= order.expiresAt) order.state = 'expired'; return order; };
   const publicOrder = o => ({ id: o.id, code: o.code, state: update(o).state, stationId: o.config.stationId,
     vehicle: `${o.config.vehicle.brand} ${o.config.vehicle.model}`, amountCents: 100, method: o.method,
-    expiresAt: o.expiresAt, sessionId: o.sessionId || null, message: o.message || null, diagnostic: o.diagnostic || null, evidence: 'local-callback-demo' });
+    expiresAt: o.expiresAt, sessionId: o.sessionId || null, message: o.message || null, diagnostic: o.diagnostic || null, lockedRate: o.config.lockedRate, evidence: 'local-callback-demo' });
   const available = id => engine.snapshot().evses.find(e => e.stationId === id)?.status === 'Available';
   const lookup = (id, token, phone = false) => {
     const order = orders.get(id);
@@ -77,6 +78,7 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
     do { code = randomBytes(4).toString('hex').toUpperCase(); } while ([...orders.values()].some(o => o.code === code));
     const order = { id: randomUUID(), code, config, method: p.method, key, fingerprint,
       browserToken: randomBytes(24).toString('hex'), state: 'pending', createdAt: now(), expiresAt: now() + ttl };
+    config.lockedRate = SmartPricing.quoteNextSession(); config.lockedPosto = SmartPricing.posto();
     orders.set(order.id, order); keys.set(key, order);
     res.json({ ...publicOrder(order), token: order.browserToken });
   }));

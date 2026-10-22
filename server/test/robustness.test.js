@@ -34,7 +34,7 @@ test('último tick não entrega nem cobra energia além da meta, inclusive em 24
   assert.equal(s.status, 'finished');
   assert.ok(Math.abs(s.soc - .8) < 1e-10);
   assert.ok(Math.abs(s.energyBatteryKWh - expectedBattery) < 1e-10);
-  assert.ok(Math.abs(s.cost - s.energyGridKWh * 2) < 1e-10);
+  assert.ok(Math.abs(s.cost - s.energyGridKWh * s.lockedRate) < 1e-10);
   assert.ok(s.elapsedSim < 3600);
 });
 

@@ -173,3 +173,17 @@ test('reconexão só libera operações quando chega um snapshot novo', () => {
   client._onMessage({ type: 'snapshot', data: { sessions: [] } });
   assert.equal(client.connected, true);
 });
+
+test('monitoramento mostra o preço aceito da sessão mesmo que o patamar geral mude', () => {
+  const h=harness();
+  h.window.PricingEngine.getCurrentRate=()=>3.2;
+  h.window.PricingEngine.formatDuration=()=> '10 min';
+  h.window.ChargingSimulator={getSnapshotSession:()=>({evse:{stationId:2},minutesRemaining:10})};
+  h.window.SimClient={snapshot:{demand:{allocation:{stations:[]}}}};
+  h.context.document.querySelector=()=>({r:{baseVal:{value:90}},style:{}});
+  h.app.renderSessionEndControls=()=>{};
+  const data={batteryLevel:30,currentPower:3,energyDelivered:1,timeElapsed:60,currentCost:2,status:'charging',commandedA:13,socTarget:.8,lockedRate:2};
+  h.app.updateMonitoringUI(data);assert.equal(h.get('stat-price').textContent,'2/kWh');
+  h.window.PricingEngine.getCurrentRate=()=>.58;
+  h.app.updateMonitoringUI(data);assert.equal(h.get('stat-price').textContent,'2/kWh');
+});

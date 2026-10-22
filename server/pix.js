@@ -1,3 +1,4 @@
+import SmartPricing from './sim/smart-pricing.js';
 const API = 'https://api.mercadopago.com/v1/orders';
 export function normalizePixStatus(data) {
   if (data.status === 'processed' && data.status_detail === 'accredited') return 'approved';
@@ -56,6 +57,7 @@ export function attachPixRoutes(app, { engine, config = process.env, fetchImpl =
           if (!estimate || estimate.estimatedCost < .01) throw failure('Não foi possível estimar esta recarga.', 400);
         }
         entry = { fingerprint, amount, checkout: checkout ? structuredClone(checkout) : null, createdAt: now(), result: null, pending: null, used: false };
+        entry.lockedRate = SmartPricing.quoteNextSession(); entry.lockedPosto = SmartPricing.posto();
         requests.set(key, entry);
       }
       if (!entry.result) {
@@ -69,7 +71,7 @@ export function attachPixRoutes(app, { engine, config = process.env, fetchImpl =
             const pix = data.transactions?.payments?.[0]?.payment_method;
             if (!data.id || !pix?.qr_code || !pix?.qr_code_base64) throw failure('Resposta do Mercado Pago sem QR Code válido.');
             entry.result = { paymentId: String(data.id), status: normalizePixStatus(data), amount: entry.amount,
-              qrCode: pix.qr_code, qrCodeBase64: pix.qr_code_base64, sandbox };
+              qrCode: pix.qr_code, qrCodeBase64: pix.qr_code_base64, sandbox, lockedRate: entry.lockedRate };
             payments.set(entry.result.paymentId, entry);
             return entry.result;
           }).finally(() => { entry.pending = null; });
@@ -95,7 +97,8 @@ export function attachPixRoutes(app, { engine, config = process.env, fetchImpl =
       if (!entry || !entry.checkout || entry.used || checkoutKey(entry.checkout) !== checkoutKey(checkout)) throw failure('O Pix não corresponde a esta recarga ou já foi utilizado.', 400);
       const data = await call(`/${encodeURIComponent(paymentId)}`);
       if (normalizePixStatus(data) !== 'approved' || Number(data.total_amount) !== entry.amount) throw failure('Pagamento ainda não confirmado para esta recarga.', 409);
-      return (commit = true) => { if (entry.used) throw failure('Pagamento já utilizado.', 409); if (commit) entry.used = true; };
+      const consume = (commit = true) => { if (entry.used) throw failure('Pagamento já utilizado.', 409); if (commit) entry.used = true; };
+      return Object.assign(consume, { lockedRate: entry.lockedRate, lockedPosto: entry.lockedPosto });
     }
   };
 }
