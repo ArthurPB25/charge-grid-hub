@@ -162,9 +162,6 @@ Fontes do código e ferramentas:
 - [Assistente administrativo](server/cloud-advisor.js), [histórico](server/totem-history.js), [importação SEMS](server/sems-import.js), [InfiniteTap](server/tap-demo.js) e [instruções de execução](#executar-localmente).
 - Documentação oficial das ferramentas: [Node.js](https://nodejs.org/docs/latest-v22.x/api/), [Express](https://expressjs.com/), [ws](https://github.com/websockets/ws), [PDFKit](https://pdfkit.org/), [Ollama](https://docs.ollama.com/), [PubSubClient](https://pubsubclient.knolleary.net/).
 
-## 9. Material e entrega
-
-Este README reúne o relatório final e a documentação principal do projeto, conforme a opção de entrega pelo repositório. O vídeo técnico deve demonstrar a solução em até cinco minutos. O único arquivo a enviar no portal é o `.txt` com nomes, RMs, vídeo não listado e GitHub. O vídeo ainda precisa ser gravado e publicado pelo grupo.
 
 ## Executar localmente
 
