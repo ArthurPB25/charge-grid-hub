@@ -1,0 +1,794 @@
+TAP version 13
+# Subtest: Cloud: consultar estado ou gerar dados não faz inferência; acesso inválido também não
+ok 1 - Cloud: consultar estado ou gerar dados não faz inferência; acesso inválido também não
+  ---
+  duration_ms: 245.9018
+  type: 'test'
+  ...
+# Subtest: Cloud: uma chamada curta com indicadores agregados; reaproveita sem repetir nem enviar dados privados
+ok 2 - Cloud: uma chamada curta com indicadores agregados; reaproveita sem repetir nem enviar dados privados
+  ---
+  duration_ms: 81.393
+  type: 'test'
+  ...
+# Subtest: Cloud: limite persiste após reinício e entrada inválida não permite nova chamada
+ok 3 - Cloud: limite persiste após reinício e entrada inválida não permite nova chamada
+  ---
+  duration_ms: 377.2684
+  type: 'test'
+  ...
+# Subtest: Cloud: erro ou cota esgotada não provoca repetição automática e também conta como tentativa
+ok 4 - Cloud: erro ou cota esgotada não provoca repetição automática e também conta como tentativa
+  ---
+  duration_ms: 80.6883
+  type: 'test'
+  ...
+# Subtest: Cloud: bloqueia dicas inventadas, duplicadas, texto livre e gráfico fora do catálogo
+ok 5 - Cloud: bloqueia dicas inventadas, duplicadas, texto livre e gráfico fora do catálogo
+  ---
+  duration_ms: 5.6786
+  type: 'test'
+  ...
+# Subtest: Cloud: pedidos simultâneos não duplicam a consulta; só novos dados históricos invalidam o cache
+ok 6 - Cloud: pedidos simultâneos não duplicam a consulta; só novos dados históricos invalidam o cache
+  ---
+  duration_ms: 27.4597
+  type: 'test'
+  ...
+# Subtest: Cloud: configuração incompleta ou falha ao persistir impede requisição
+ok 7 - Cloud: configuração incompleta ou falha ao persistir impede requisição
+  ---
+  duration_ms: 69.2935
+  type: 'test'
+  ...
+# Subtest: gráficos e dicas se apoiam no histórico; retrato ao vivo não é usado como demanda do período
+ok 8 - gráficos e dicas se apoiam no histórico; retrato ao vivo não é usado como demanda do período
+  ---
+  duration_ms: 17.9002
+  type: 'test'
+  ...
+# Subtest: Cloud API: botões sem IA e PDF não gastam; uma análise autorizada usa cache e mantém controle isolado
+ok 9 - Cloud API: botões sem IA e PDF não gastam; uma análise autorizada usa cache e mantém controle isolado
+  ---
+  duration_ms: 4670.5
+  type: 'test'
+  ...
+# Subtest: chegada divide a potência imediatamente; encerramento devolve a potência sem cobrar energia extra
+ok 10 - chegada divide a potência imediatamente; encerramento devolve a potência sem cobrar energia extra
+  ---
+  duration_ms: 239.324
+  type: 'test'
+  ...
+# Subtest: redução de apenas 1 A e pico de consumo não aguardam histerese
+ok 11 - redução de apenas 1 A e pico de consumo não aguardam histerese
+  ---
+  duration_ms: 6.4894
+  type: 'test'
+  ...
+# Subtest: pausa quando não cabe a corrente mínima e retoma após liberar capacidade
+ok 12 - pausa quando não cabe a corrente mínima e retoma após liberar capacidade
+  ---
+  duration_ms: 8.0246
+  type: 'test'
+  ...
+# Subtest: respeita o limite do carro e repassa a sobra às outras recargas
+ok 13 - respeita o limite do carro e repassa a sobra às outras recargas
+  ---
+  duration_ms: 58.5481
+  type: 'test'
+  ...
+# Subtest: quatro estações repartem orçamento; falta de potência suspende parte delas
+ok 14 - quatro estações repartem orçamento; falta de potência suspende parte delas
+  ---
+  duration_ms: 25.7088
+  type: 'test'
+  ...
+# Subtest: excedente solar alimenta os carros antes de importar energia da rede
+ok 15 - excedente solar alimenta os carros antes de importar energia da rede
+  ---
+  duration_ms: 4.7845
+  type: 'test'
+  ...
+# Subtest: conclusão automática redistribui no mesmo tick e mantém a estação concluída sem potência
+ok 16 - conclusão automática redistribui no mesmo tick e mantém a estação concluída sem potência
+  ---
+  duration_ms: 89.5904
+  type: 'test'
+  ...
+# Subtest: sem sessões a base usa a faixa; solar e restrição não alteram preço
+ok 17 - sem sessões a base usa a faixa; solar e restrição não alteram preço
+  ---
+  duration_ms: 148.6467
+  type: 'test'
+  ...
+# Subtest: entrada de carros eleva o patamar em R$0,10 e preserva contratos anteriores
+ok 18 - entrada de carros eleva o patamar em R$0,10 e preserva contratos anteriores
+  ---
+  duration_ms: 458.2698
+  type: 'test'
+  ...
+# Subtest: saídas e reposição de vaga não reduzem o patamar; só esvaziar todos os pontos o reinicia
+ok 19 - saídas e reposição de vaga não reduzem o patamar; só esvaziar todos os pontos o reinicia
+  ---
+  duration_ms: 32.726
+  type: 'test'
+  ...
+# Subtest: sessão preserva preço aceito e nova faixa só aumenta o patamar na entrada seguinte
+ok 20 - sessão preserva preço aceito e nova faixa só aumenta o patamar na entrada seguinte
+  ---
+  duration_ms: 6.1536
+  type: 'test'
+  ...
+# Subtest: carros pausados continuam contando para a tarifa e o gráfico explica o patamar mantido
+ok 21 - carros pausados continuam contando para a tarifa e o gráfico explica o patamar mantido
+  ---
+  duration_ms: 29.8327
+  type: 'test'
+  ...
+# Subtest: cancelar Pix durante a criação ignora a resposta atrasada e não inicia polling ou recarga
+ok 22 - cancelar Pix durante a criação ignora a resposta atrasada e não inicia polling ou recarga
+  ---
+  duration_ms: 23.0058
+  type: 'test'
+  ...
+# Subtest: Pix envia R$1 sem solicitar e-mail; estimativa permanece separada
+ok 23 - Pix envia R$1 sem solicitar e-mail; estimativa permanece separada
+  ---
+  duration_ms: 41.9481
+  type: 'test'
+  ...
+# Subtest: Pix sandbox exibe QR sem formulário e identifica o teste
+ok 24 - Pix sandbox exibe QR sem formulário e identifica o teste
+  ---
+  duration_ms: 21.7422
+  type: 'test'
+  ...
+# Subtest: clique repetido em Pix não duplica a requisição e não usa valor fictício sem estimativa
+ok 25 - clique repetido em Pix não duplica a requisição e não usa valor fictício sem estimativa
+  ---
+  duration_ms: 29.2472
+  type: 'test'
+  ...
+# Subtest: estimativa com retorno fora de ordem não sobrescreve a última seleção, inclusive A/B/A
+ok 26 - estimativa com retorno fora de ordem não sobrescreve a última seleção, inclusive A/B/A
+  ---
+  duration_ms: 18.0813
+  type: 'test'
+  ...
+# Subtest: pagamento espera a estimativa, preserva o método escolhido e trata indisponibilidade
+ok 27 - pagamento espera a estimativa, preserva o método escolhido e trata indisponibilidade
+  ---
+  duration_ms: 7.1726
+  type: 'test'
+  ...
+# Subtest: consulta Pix recupera falha transitória e cancelamento silencia consultas em andamento
+ok 28 - consulta Pix recupera falha transitória e cancelamento silencia consultas em andamento
+  ---
+  duration_ms: 17.7632
+  type: 'test'
+  ...
+# Subtest: falha ao gerar novo relatório não mantém download de um período anterior
+ok 29 - falha ao gerar novo relatório não mantém download de um período anterior
+  ---
+  duration_ms: 43.2311
+  type: 'test'
+  ...
+# Subtest: duração arredondada nunca mostra 1h 60min e valores inválidos têm fallback
+ok 30 - duração arredondada nunca mostra 1h 60min e valores inválidos têm fallback
+  ---
+  duration_ms: 7.0728
+  type: 'test'
+  ...
+# Subtest: identificador de cobrança funciona em HTTP no tablet sem crypto.randomUUID
+ok 31 - identificador de cobrança funciona em HTTP no tablet sem crypto.randomUUID
+  ---
+  duration_ms: 6.0563
+  type: 'test'
+  ...
+# Subtest: totem desconectado não anuncia tarifa zero ou estações disponíveis
+ok 32 - totem desconectado não anuncia tarifa zero ou estações disponíveis
+  ---
+  duration_ms: 7.1443
+  type: 'test'
+  ...
+# Subtest: queda durante envio de comando não produz sucesso falso nem exceção na interface
+ok 33 - queda durante envio de comando não produz sucesso falso nem exceção na interface
+  ---
+  duration_ms: 31.2177
+  type: 'test'
+  ...
+# Subtest: reconexão só libera operações quando chega um snapshot novo
+ok 34 - reconexão só libera operações quando chega um snapshot novo
+  ---
+  duration_ms: 5.2195
+  type: 'test'
+  ...
+# Subtest: monitoramento mostra o preço aceito da sessão mesmo que o patamar geral mude
+ok 35 - monitoramento mostra o preço aceito da sessão mesmo que o patamar geral mude
+  ---
+  duration_ms: 7.7051
+  type: 'test'
+  ...
+# Subtest: HTTPS usa a mesma origem para API e WSS, preservando desenvolvimento local
+ok 36 - HTTPS usa a mesma origem para API e WSS, preservando desenvolvimento local
+  ---
+  duration_ms: 26.5722
+  type: 'test'
+  ...
+# Subtest: aguarda LIGAR, ignora outro cliente e duplicatas
+ok 37 - aguarda LIGAR, ignora outro cliente e duplicatas
+  ---
+  duration_ms: 11.6372
+  type: 'test'
+  ...
+# Subtest: DESLIGAR, cancelamento e expiração impedem autorização posterior
+ok 38 - DESLIGAR, cancelamento e expiração impedem autorização posterior
+  ---
+  duration_ms: 37.1542
+  type: 'test'
+  ...
+# Subtest: corte manual usa DESLIGAR no comando original com QoS1, sem confundir broker e confirmação do ESP
+ok 39 - corte manual usa DESLIGAR no comando original com QoS1, sem confundir broker e confirmação do ESP
+  ---
+  duration_ms: 212.5918
+  type: 'test'
+  ...
+# Subtest: desligamento offline sobrevive ao recarregamento e é enviado ao reconectar; LIGAR não é enfileirado
+ok 40 - desligamento offline sobrevive ao recarregamento e é enviado ao reconectar; LIGAR não é enfileirado
+  ---
+  duration_ms: 8.8968
+  type: 'test'
+  ...
+# Subtest: falha de publicação mantém corte e callback antigo não apaga novo pedido de desligamento
+ok 41 - falha de publicação mantém corte e callback antigo não apaga novo pedido de desligamento
+  ---
+  duration_ms: 7.6985
+  type: 'test'
+  ...
+# Subtest: HTML aberto por file usa backend local; acesso por IP conserva o host
+ok 42 - HTML aberto por file usa backend local; acesso por IP conserva o host
+  ---
+  duration_ms: 18.2014
+  type: 'test'
+  ...
+# Subtest: início pago: corte manual invalida callback atrasado e reconexão não repete LIGAR
+ok 43 - início pago: corte manual invalida callback atrasado e reconexão não repete LIGAR
+  ---
+  duration_ms: 14.7667
+  type: 'test'
+  ...
+# Subtest: ponte recebe texto puro; ignora retain, status e tópico interno de relé
+ok 44 - ponte recebe texto puro; ignora retain, status e tópico interno de relé
+  ---
+  duration_ms: 6.053
+  type: 'test'
+  ...
+# Subtest: tela só avança após resposta do servidor e cancela a espera se MQTT cair
+ok 45 - tela só avança após resposta do servidor e cancela a espera se MQTT cair
+  ---
+  duration_ms: 23.9992
+  type: 'test'
+  ...
+# Subtest: WebSocket e motor: sem carga antes de LIGAR, DESLIGAR encerra e cancelar invalida espera
+ok 46 - WebSocket e motor: sem carga antes de LIGAR, DESLIGAR encerra e cancelar invalida espera
+  ---
+  duration_ms: 446.6276
+  type: 'test'
+  ...
+# Subtest: calcula período de São Paulo, deduplica registros e separa SEMS de estimativas
+ok 47 - calcula período de São Paulo, deduplica registros e separa SEMS de estimativas
+  ---
+  duration_ms: 277.5445
+  type: 'test'
+  ...
+# Subtest: limites de data usam calendário local e excluem o futuro
+ok 48 - limites de data usam calendário local e excluem o futuro
+  ---
+  duration_ms: 11.3495
+  type: 'test'
+  ...
+# Subtest: base vazia não inventa procura, falhas ou recomendações
+ok 49 - base vazia não inventa procura, falhas ou recomendações
+  ---
+  duration_ms: 3.9768
+  type: 'test'
+  ...
+# Subtest: análise distingue encerramento antecipado, pausa histórica e retrato atual
+ok 50 - análise distingue encerramento antecipado, pausa histórica e retrato atual
+  ---
+  duration_ms: 9.7673
+  type: 'test'
+  ...
+# Subtest: Ollama organiza IDs de dados agregados e não escreve a análise nem modifica valores
+ok 51 - Ollama organiza IDs de dados agregados e não escreve a análise nem modifica valores
+  ---
+  duration_ms: 15.2007
+  type: 'test'
+  ...
+# Subtest: rejeita texto inventado, dados omitidos, duplicados e mistura de período com estado atual
+ok 52 - rejeita texto inventado, dados omitidos, duplicados e mistura de período com estado atual
+  ---
+  duration_ms: 139.6002
+  type: 'test'
+  ...
+# Subtest: API com IA desativada serve regras, valida período e reutiliza cache
+ok 53 - API com IA desativada serve regras, valida período e reutiliza cache
+  ---
+  duration_ms: 1458.8863
+  type: 'test'
+  ...
+# Subtest: API trata erro do provedor com fallback identificado e não expõe credenciais
+ok 54 - API trata erro do provedor com fallback identificado e não expõe credenciais
+  ---
+  duration_ms: 475.1293
+  type: 'test'
+  ...
+# Subtest: API marca análise real com IA e impede duas chamadas simultâneas ao provedor
+ok 55 - API marca análise real com IA e impede duas chamadas simultâneas ao provedor
+  ---
+  duration_ms: 125.8228
+  type: 'test'
+  ...
+# Subtest: não envia dados para hosts externos, modelos de nuvem ou modelos remotos
+ok 56 - não envia dados para hosts externos, modelos de nuvem ou modelos remotos
+  ---
+  duration_ms: 8.6321
+  type: 'test'
+  ...
+# Subtest: modelo ausente não fica em cache e pode funcionar após o download; chave OpenAI é ignorada
+ok 57 - modelo ausente não fica em cache e pode funcionar após o download; chave OpenAI é ignorada
+  ---
+  duration_ms: 115.5112
+  type: 'test'
+  ...
+# Subtest: PDF é baixado pelo identificador do relatório original, sem chamar a IA novamente
+ok 58 - PDF é baixado pelo identificador do relatório original, sem chamar a IA novamente
+  ---
+  duration_ms: 2027.0787
+  type: 'test'
+  ...
+# Subtest: botão salva o PDF do servidor com nome do período e restaura o estado
+ok 59 - botão salva o PDF do servidor com nome do período e restaura o estado
+  ---
+  duration_ms: 93.2893
+  type: 'test'
+  ...
+# Subtest: relatório expirado informa erro e não baixa JSON com extensão PDF
+ok 60 - relatório expirado informa erro e não baixa JSON com extensão PDF
+  ---
+  duration_ms: 6.6572
+  type: 'test'
+  ...
+# Subtest: cache da organização não esconde sessões recém-encerradas no relatório
+ok 61 - cache da organização não esconde sessões recém-encerradas no relatório
+  ---
+  duration_ms: 109.6289
+  type: 'test'
+  ...
+# Subtest: registro antigo sem bateria/meta não é classificado como meta atingida
+ok 62 - registro antigo sem bateria/meta não é classificado como meta atingida
+  ---
+  duration_ms: 5.8913
+  type: 'test'
+  ...
+# Subtest: Pix recusa valores, checkout, e-mail e identificador inválidos antes de contatar o provedor
+ok 63 - Pix recusa valores, checkout, e-mail e identificador inválidos antes de contatar o provedor
+  ---
+  duration_ms: 3332.5576
+  type: 'test'
+  ...
+# Subtest: duplo clique e retry usam uma cobrança; servidor fixa R$1 independentemente da estimativa
+ok 64 - duplo clique e retry usam uma cobrança; servidor fixa R$1 independentemente da estimativa
+  ---
+  duration_ms: 459.8123
+  type: 'test'
+  ...
+# Subtest: erro de rede preserva a idempotência para retry e não expõe detalhes internos
+ok 65 - erro de rede preserva a idempotência para retry e não expõe detalhes internos
+  ---
+  duration_ms: 128.33
+  type: 'test'
+  ...
+# Subtest: Pix só libera a recarga correta, paga no valor correto e uma única vez
+ok 66 - Pix só libera a recarga correta, paga no valor correto e uma única vez
+  ---
+  duration_ms: 160.304
+  type: 'test'
+  ...
+# Subtest: ausência de token, recusa e QR incompleto produzem erro explícito
+ok 67 - ausência de token, recusa e QR incompleto produzem erro explícito
+  ---
+  duration_ms: 140.1444
+  type: 'test'
+  ...
+# Subtest: Pix produção usa R$1, e-mail informado e não envia APRO de sandbox
+ok 68 - Pix produção usa R$1, e-mail informado e não envia APRO de sandbox
+  ---
+  duration_ms: 85.4999
+  type: 'test'
+  ...
+# Subtest: Pix preserva preço de energia do pedido antes da aprovação em outra faixa
+ok 69 - Pix preserva preço de energia do pedido antes da aprovação em outra faixa
+  ---
+  duration_ms: 37.388
+  type: 'test'
+  ...
+# Subtest: estimativa rejeita estação inexistente, bateria/meta inválida e limite de potência sem sentido
+ok 70 - estimativa rejeita estação inexistente, bateria/meta inválida e limite de potência sem sentido
+  ---
+  duration_ms: 166.4194
+  type: 'test'
+  ...
+# Subtest: sessão rejeita capacidade zero e bateria/meta inválidas sem modificar estações
+ok 71 - sessão rejeita capacidade zero e bateria/meta inválidas sem modificar estações
+  ---
+  duration_ms: 3.0569
+  type: 'test'
+  ...
+# Subtest: último tick não entrega nem cobra energia além da meta, inclusive em 240x
+ok 72 - último tick não entrega nem cobra energia além da meta, inclusive em 240x
+  ---
+  duration_ms: 13.8394
+  type: 'test'
+  ...
+# Subtest: comandos inválidos do relógio não envenenam a data compartilhada
+ok 73 - comandos inválidos do relógio não envenenam a data compartilhada
+  ---
+  duration_ms: 1.3251
+  type: 'test'
+  ...
+# Subtest: tarifa usa São Paulo mesmo quando o servidor está em UTC; faixas respeitam limites
+ok 74 - tarifa usa São Paulo mesmo quando o servidor está em UTC; faixas respeitam limites
+  ---
+  duration_ms: 1094.9839
+  type: 'test'
+  ...
+# Subtest: todos os oito carros nas quatro estações têm estimativas coerentes em diferentes baterias
+ok 75 - todos os oito carros nas quatro estações têm estimativas coerentes em diferentes baterias
+  ---
+  duration_ms: 148.429
+  type: 'test'
+  ...
+# Subtest: servidor completo: assets, isolamento de arquivos, JSON, estimativas e PDF
+    # Subtest: totem, admin e todos os assets locais respondem
+    ok 1 - totem, admin e todos os assets locais respondem
+      ---
+      duration_ms: 5244.2721
+      type: 'test'
+      ...
+    # Subtest: backend não publica credenciais, histórico ou fontes do servidor
+    ok 2 - backend não publica credenciais, histórico ou fontes do servidor
+      ---
+      duration_ms: 45.7799
+      type: 'test'
+      ...
+    # Subtest: JSON inválido e parâmetros inválidos geram erro JSON, sem derrubar o servidor
+    ok 3 - JSON inválido e parâmetros inválidos geram erro JSON, sem derrubar o servidor
+      ---
+      duration_ms: 149.7549
+      type: 'test'
+      ...
+    # Subtest: estimativa válida tem energia, duração e custo finitos
+    ok 4 - estimativa válida tem energia, duração e custo finitos
+      ---
+      duration_ms: 21.0634
+      type: 'test'
+      ...
+    # Subtest: relatórios hoje/semana/mês e PDFs funcionam sem Ollama, com fallback identificado
+    ok 5 - relatórios hoje/semana/mês e PDFs funcionam sem Ollama, com fallback identificado
+      ---
+      duration_ms: 587.0787
+      type: 'test'
+      ...
+    1..5
+ok 76 - servidor completo: assets, isolamento de arquivos, JSON, estimativas e PDF
+  ---
+  duration_ms: 12207.9175
+  type: 'test'
+  ...
+# Subtest: sessões coexistem; conclusão mantém o carro visível sem afetar outra estação
+ok 77 - sessões coexistem; conclusão mantém o carro visível sem afetar outra estação
+  ---
+  duration_ms: 188.0883
+  type: 'test'
+  ...
+# Subtest: WebSocket: segundo atendimento, cancelamento e reconexão preservam a primeira recarga
+ok 78 - WebSocket: segundo atendimento, cancelamento e reconexão preservam a primeira recarga
+  ---
+  duration_ms: 448.3575
+  type: 'test'
+  ...
+# Subtest: acompanhamento consulta a sessão escolhida e encerra somente seu identificador
+ok 79 - acompanhamento consulta a sessão escolhida e encerra somente seu identificador
+  ---
+  duration_ms: 12.844
+  type: 'test'
+  ...
+# Subtest: botões encerram uma recarga antiga ou concluída e continuam funcionando na próxima estação
+ok 80 - botões encerram uma recarga antiga ou concluída e continuam funcionando na próxima estação
+  ---
+  duration_ms: 33.8346
+  type: 'test'
+  ...
+# Subtest: InfiniteTap totem: pagamento avança à confirmação sem conectar; cliente conecta uma vez
+ok 81 - InfiniteTap totem: pagamento avança à confirmação sem conectar; cliente conecta uma vez
+  ---
+  duration_ms: 14.0241
+  type: 'test'
+  ...
+# Subtest: InfiniteTap totem: liberação volta às estações e elimina o pedido pendente
+ok 82 - InfiniteTap totem: liberação volta às estações e elimina o pedido pendente
+  ---
+  duration_ms: 6.6151
+  type: 'test'
+  ...
+# Subtest: InfiniteTap totem: consulta atrasada após cancelar não substitui o resultado atual
+ok 83 - InfiniteTap totem: consulta atrasada após cancelar não substitui o resultado atual
+  ---
+  duration_ms: 4.145
+  type: 'test'
+  ...
+# Subtest: InfiniteTap totem: retorno não confirmado nunca exibe recarga iniciada
+ok 84 - InfiniteTap totem: retorno não confirmado nunca exibe recarga iniciada
+  ---
+  duration_ms: 6.6564
+  type: 'test'
+  ...
+# Subtest: InfiniteTap totem: retorno incompleto mantém acompanhamento e aceita confirmação posterior
+ok 85 - InfiniteTap totem: retorno incompleto mantém acompanhamento e aceita confirmação posterior
+  ---
+  duration_ms: 4.2675
+  type: 'test'
+  ...
+# Subtest: InfiniteTap totem: 404 após reinício encerra acompanhamento e orienta conferir pagamento
+ok 86 - InfiniteTap totem: 404 após reinício encerra acompanhamento e orienta conferir pagamento
+  ---
+  duration_ms: 4.7487
+  type: 'test'
+  ...
+# Subtest: InfiniteTap totem: cancelar pedido inexistente permite sair sem prometer estorno
+ok 87 - InfiniteTap totem: cancelar pedido inexistente permite sair sem prometer estorno
+  ---
+  duration_ms: 6.1344
+  type: 'test'
+  ...
+# Subtest: InfiniteTap totem: falha transitória conserva pedido e reconsulta; cancelar não rejeita sem tratamento
+ok 88 - InfiniteTap totem: falha transitória conserva pedido e reconsulta; cancelar não rejeita sem tratamento
+  ---
+  duration_ms: 13.5122
+  type: 'test'
+  ...
+# Subtest: InfiniteTap totem: erro atrasado de pedido anterior não remove o atual
+ok 89 - InfiniteTap totem: erro atrasado de pedido anterior não remove o atual
+  ---
+  duration_ms: 7.7374
+  type: 'test'
+  ...
+# Subtest: InfiniteTap totem: request preserva status HTTP para distinguir pedido perdido de queda de rede
+ok 90 - InfiniteTap totem: request preserva status HTTP para distinguir pedido perdido de queda de rede
+  ---
+  duration_ms: 7.315
+  type: 'test'
+  ...
+# Subtest: InfiniteTap físico preserva pedido pago enquanto houver desligamento pendente e permite nova sessão depois
+ok 91 - InfiniteTap físico preserva pedido pago enquanto houver desligamento pendente e permite nova sessão depois
+  ---
+  duration_ms: 10.3586
+  type: 'test'
+  ...
+# Subtest: InfiniteTap físico: ausência de potência conserva Conectar e nunca publica LIGAR
+ok 92 - InfiniteTap físico: ausência de potência conserva Conectar e nunca publica LIGAR
+  ---
+  duration_ms: 6.1578
+  type: 'test'
+  ...
+# Subtest: InfiniteTap físico: cancelamento enquanto aguarda vínculo impede envio atrasado ao backend
+ok 93 - InfiniteTap físico: cancelamento enquanto aguarda vínculo impede envio atrasado ao backend
+  ---
+  duration_ms: 4.382
+  type: 'test'
+  ...
+# Subtest: InfiniteTap físico: restaurar sessão liberada conserva recuperação sem religar automaticamente
+ok 94 - InfiniteTap físico: restaurar sessão liberada conserva recuperação sem religar automaticamente
+  ---
+  duration_ms: 3.9445
+  type: 'test'
+  ...
+# Subtest: InfiniteTap físico: consulta iniciada antes de Conectar não descarta pedido durante envio
+ok 95 - InfiniteTap físico: consulta iniciada antes de Conectar não descarta pedido durante envio
+  ---
+  duration_ms: 3.1204
+  type: 'test'
+  ...
+# Subtest: vínculo do totem: aguarda resposta correspondente, rejeita queda e remove esperas
+ok 96 - vínculo do totem: aguarda resposta correspondente, rejeita queda e remove esperas
+  ---
+  duration_ms: 8.0974
+  type: 'test'
+  ...
+# Subtest: consulta do pagamento continua funcionando durante a criação inicial do pedido
+ok 97 - consulta do pagamento continua funcionando durante a criação inicial do pedido
+  ---
+  duration_ms: 5.1246
+  type: 'test'
+  ...
+# Subtest: InfiniteTap demo: critérios locais recusam retorno vazio, erro, cancelamento e parâmetros inválidos
+ok 98 - InfiniteTap demo: critérios locais recusam retorno vazio, erro, cancelamento e parâmetros inválidos
+  ---
+  duration_ms: 13.722
+  type: 'test'
+  ...
+# Subtest: InfiniteTap demo: R$1 canônico, pedido idempotente, celular exclusivo e liberação uma vez
+ok 99 - InfiniteTap demo: R$1 canônico, pedido idempotente, celular exclusivo e liberação uma vez
+  ---
+  duration_ms: 1837.0083
+  type: 'test'
+  ...
+# InfiniteTap: retorno exige conferência {"orderId":"31d537a5-62f6-4676-9c8c-0b781825d606","reason":"incomplete-result","missing":["nsu","aut","card_brand"],"invalid":[],"errorFields":[]}
+# InfiniteTap: retorno exige conferência {"orderId":"31d537a5-62f6-4676-9c8c-0b781825d606","reason":"provider-rejected","missing":[],"invalid":[],"errorFields":["warning"],"providerMessage":"Operação interrompida"}
+# Subtest: InfiniteTap demo: cancelamento/incompleto, prazo e estação ocupada não iniciam sessão
+ok 100 - InfiniteTap demo: cancelamento/incompleto, prazo e estação ocupada não iniciam sessão
+  ---
+  duration_ms: 263.8264
+  type: 'test'
+  ...
+# InfiniteTap: retorno exige conferência {"orderId":"c03cfebf-d909-489c-b33c-25820a4bb887","reason":"incomplete-result","missing":["nsu","aut","card_brand"],"invalid":[],"errorFields":[]}
+# Subtest: InfiniteTap: retorno incompleto não encerra pedido e confirmação posterior não inicia carga
+ok 101 - InfiniteTap: retorno incompleto não encerra pedido e confirmação posterior não inicia carga
+  ---
+  duration_ms: 112.3053
+  type: 'test'
+  ...
+# Subtest: InfiniteTap demo: desativado por padrão e reserva entre pedidos pendentes
+ok 102 - InfiniteTap demo: desativado por padrão e reserva entre pedidos pendentes
+  ---
+  duration_ms: 59.5942
+  type: 'test'
+  ...
+# Subtest: InfiniteTap demo: retorno aguarda Conectar no totem antes de iniciar o motor compartilhado
+ok 103 - InfiniteTap demo: retorno aguarda Conectar no totem antes de iniciar o motor compartilhado
+  ---
+  duration_ms: 108.1953
+  type: 'test'
+  ...
+# Subtest: InfiniteTap demo: NSU não pode ser reutilizado mudando a caixa do UUID
+ok 104 - InfiniteTap demo: NSU não pode ser reutilizado mudando a caixa do UUID
+  ---
+  duration_ms: 49.4113
+  type: 'test'
+  ...
+# Subtest: pagamento não liga carga: Conectar exige pagamento, token do totem e estação livre
+ok 105 - pagamento não liga carga: Conectar exige pagamento, token do totem e estação livre
+  ---
+  duration_ms: 69.6587
+  type: 'test'
+  ...
+# Subtest: InfiniteTap demo: recuperar claim exige a mesma chave secreta e conta
+ok 106 - InfiniteTap demo: recuperar claim exige a mesma chave secreta e conta
+  ---
+  duration_ms: 182.0318
+  type: 'test'
+  ...
+# Subtest: InfiniteTap demo: claim legado continua exclusivo e recuperação expirada é recusada
+ok 107 - InfiniteTap demo: claim legado continua exclusivo e recuperação expirada é recusada
+  ---
+  duration_ms: 101.1005
+  type: 'test'
+  ...
+# Subtest: InfiniteTap preserva preço registrado no pedido mesmo após mudança de faixa
+ok 108 - InfiniteTap preserva preço registrado no pedido mesmo após mudança de faixa
+  ---
+  duration_ms: 77.4936
+  type: 'test'
+  ...
+# Subtest: celular fixo: autenticação, fila, recuperação e exclusividade sem cobrar ao receber
+ok 109 - celular fixo: autenticação, fila, recuperação e exclusividade sem cobrar ao receber
+  ---
+  duration_ms: 446.0546
+  type: 'test'
+  ...
+# Subtest: celular fixo: configuração ausente, expirados e pedidos de outros celulares
+ok 110 - celular fixo: configuração ausente, expirados e pedidos de outros celulares
+  ---
+  duration_ms: 120.9378
+  type: 'test'
+  ...
+# Subtest: celular fixo: somente a conta recebedora configurada pode assumir um pedido
+ok 111 - celular fixo: somente a conta recebedora configurada pode assumir um pedido
+  ---
+  duration_ms: 34.0838
+  type: 'test'
+  ...
+# Subtest: débito: pagamento sozinho não liga; Conectar aciona ESP legado por /comando e retry não recria sessão encerrada
+ok 112 - débito: pagamento sozinho não liga; Conectar aciona ESP legado por /comando e retry não recria sessão encerrada
+  ---
+  duration_ms: 297.7056
+  type: 'test'
+  ...
+# Subtest: débito: MQTT desconectado preserva pagamento e impede início lógico e físico
+ok 113 - débito: MQTT desconectado preserva pagamento e impede início lógico e físico
+  ---
+  duration_ms: 17.2021
+  type: 'test'
+  ...
+# Subtest: retorno InfiniteTap: erro do provedor prevalece sobre identificadores de aparência válida
+ok 114 - retorno InfiniteTap: erro do provedor prevalece sobre identificadores de aparência válida
+  ---
+  duration_ms: 10.715
+  type: 'test'
+  ...
+# Subtest: retorno InfiniteTap: diagnóstico explica campos faltantes sem expor dados da transação
+ok 115 - retorno InfiniteTap: diagnóstico explica campos faltantes sem expor dados da transação
+  ---
+  duration_ms: 6.1919
+  type: 'test'
+  ...
+# Subtest: persiste somente sessões do totem, sem duplicar e usando datas reais
+ok 116 - persiste somente sessões do totem, sem duplicar e usando datas reais
+  ---
+  duration_ms: 369.1861
+  type: 'test'
+  ...
+# Subtest: encerramento manual, automático e manutenção entram no histórico uma única vez
+ok 117 - encerramento manual, automático e manutenção entram no histórico uma única vez
+  ---
+  duration_ms: 59.0564
+  type: 'test'
+  ...
+# Subtest: importação SEMS tem fonte, instante de consulta e total sem duplicatas
+ok 118 - importação SEMS tem fonte, instante de consulta e total sem duplicatas
+  ---
+  duration_ms: 567.2932
+  type: 'test'
+  ...
+# Subtest: histórico rejeita registro inválido antes de operar e não sobrescreve o arquivo
+ok 119 - histórico rejeita registro inválido antes de operar e não sobrescreve o arquivo
+  ---
+  duration_ms: 185.4275
+  type: 'test'
+  ...
+# Subtest: SEMS recusa datas impossíveis e término anterior ao início
+ok 120 - SEMS recusa datas impossíveis e término anterior ao início
+  ---
+  duration_ms: 445.9072
+  type: 'test'
+  ...
+# Subtest: WebSocket rejeita parâmetros inválidos e continua aceitando comandos válidos
+ok 121 - WebSocket rejeita parâmetros inválidos e continua aceitando comandos válidos
+  ---
+  duration_ms: 523.8028
+  type: 'test'
+  ...
+# Subtest: WebSocket usa o catálogo do servidor e recusa estação ocupada antes da autorização
+ok 122 - WebSocket usa o catálogo do servidor e recusa estação ocupada antes da autorização
+  ---
+  duration_ms: 73.3729
+  type: 'test'
+  ...
+# Subtest: Pix pendente não cria sessão e cancelamento invalida uma verificação atrasada
+ok 123 - Pix pendente não cria sessão e cancelamento invalida uma verificação atrasada
+  ---
+  duration_ms: 61.0101
+  type: 'test'
+  ...
+# Subtest: Pix sem validador não é aceito como recarga paga
+ok 124 - Pix sem validador não é aceito como recarga paga
+  ---
+  duration_ms: 22.6798
+  type: 'test'
+  ...
+# Subtest: Pix aprovado aguarda LIGAR por MQTT, como no fluxo original
+ok 125 - Pix aprovado aguarda LIGAR por MQTT, como no fluxo original
+  ---
+  duration_ms: 48.647
+  type: 'test'
+  ...
+1..125
+# tests 130
+# suites 0
+# pass 130
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15484.144
