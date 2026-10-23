@@ -23,6 +23,15 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
     vehicle: `${o.config.vehicle.brand} ${o.config.vehicle.model}`, amountCents: 100, method: o.method,
     expiresAt: o.expiresAt, sessionId: o.sessionId || null, message: o.message || null, diagnostic: o.diagnostic || null, lockedRate: o.config.lockedRate, evidence: 'local-callback-demo' });
   const available = id => engine.snapshot().evses.find(e => e.stationId === id)?.status === 'Available';
+  const connectionOrder = order => {
+    const result = publicOrder(order);
+    if (order.config.stationId === 1 && order.sessionId) {
+      const session = engine.snapshot().sessions?.find(s => s.id === order.sessionId && s.evse.stationId === 1);
+      result.physical = { sessionId: order.sessionId, active: Boolean(session && session.status !== 'finished'),
+        command: session && session.status !== 'finished' && session.evse.commandedA > 0 ? 'LIGAR' : 'DESLIGAR' };
+    }
+    return result;
+  };
   const lookup = (id, token, phone = false) => {
     const order = orders.get(id);
     if (!order || !token || token !== (phone ? order.phoneToken : order.browserToken)) throw fault('Pedido não encontrado ou acesso inválido.', 404);
@@ -128,7 +137,10 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
   }));
   app.post('/api/tap-demo/orders/:id/connect', route((req, res) => {
     const order = lookup(req.params.id, req.get('X-Tap-Token'));
-    if (order.state === 'released') return res.json(publicOrder(order));
+    if (order.state === 'released') {
+      if (order.config.stationId === 1 && connectionOrder(order).physical.active) beforeStart(order);
+      return res.json(connectionOrder(order));
+    }
     if (order.state !== 'paid') throw fault('Aguarde a confirmação do pagamento antes de conectar.', 409);
     if (!available(order.config.stationId)) throw fault('Estação indisponível. Procure o operador; não pague novamente.', 409);
     beforeStart(order);
@@ -136,7 +148,7 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
     if (!session) throw fault('Não foi possível conectar. Procure o operador; não pague novamente.', 409);
     order.state = 'released'; order.sessionId = session.id;
     engine._notify();
-    res.json(publicOrder(order));
+    res.json(connectionOrder(order));
   }));
   app.post('/api/tap-demo/orders/:id/ready', route((req, res) => {
     const order = lookup(req.params.id, req.get('X-Tap-Token'), true);
@@ -152,5 +164,5 @@ export function attachTapDemoRoutes(app, { engine, enabled = false, now = Date.n
     order.message = 'Acompanhamento encerrado pelo estabelecimento. Isso não cancela nem estorna um pagamento.';
     res.json(publicOrder(order));
   }));
-  return { setBeforeStart(fn) { beforeStart = fn; }, canWatch(id, token) { try { return ['pending', 'paid', 'review'].includes(lookup(id, token).state); } catch { return false; } } };
+  return { setBeforeStart(fn) { beforeStart = fn; }, canWatch(id, token) { try { return ['pending', 'paid', 'review', 'released'].includes(lookup(id, token).state); } catch { return false; } } };
 }

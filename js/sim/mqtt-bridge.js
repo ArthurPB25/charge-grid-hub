@@ -149,6 +149,34 @@ window.MqttBridge = {
     return true;
   },
 
+  prontoParaIniciarCarga() {
+    return Boolean(this.ativo && this.conectado && this.client?.connected && !this._cortePendente);
+  },
+
+  // Called only by Conectar after the server validates the paid, active session.
+  // QoS0 and queueQoSZero:false avoid replaying an old LIGAR on reconnection.
+  iniciarCargaPaga(permitido) {
+    const valid = () => this.prontoParaIniciarCarga() && !this._bloqueioManual && permitido();
+    if (!valid()) return Promise.reject(new Error('Não foi possível enviar o início ao ESP. Verifique o MQTT e tente Conectar novamente, sem pagar outra vez.'));
+    return new Promise((resolve, reject) => {
+      const revision = this._corteRevisao;
+      let settled = false;
+      const finish = error => {
+        if (settled) return;
+        settled = true; clearTimeout(timer);
+        if (error || revision !== this._corteRevisao || !valid()) {
+          reject(new Error('O início do ESP não foi confirmado pelo envio. Confira a estação e tente Conectar novamente, sem pagar outra vez.'));
+        } else {
+          this.registrar('LIGAR enviado ao tópico de comando. Confira o status do ESP no acompanhamento.');
+          resolve();
+        }
+      };
+      const timer = setTimeout(() => finish(new Error('Tempo de envio esgotado.')), 5000);
+      try { this.client.publish(this.topicoComando, 'LIGAR', { qos: 0, retain: false }, finish); }
+      catch (error) { finish(error); }
+    });
+  },
+
   /** Publica a ordem manual de cancelar/encerrar a recarga. */
   cortarCarga() {
     this._cortePendente = this._bloqueioManual = true;

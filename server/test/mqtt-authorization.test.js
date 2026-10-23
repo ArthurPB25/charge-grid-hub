@@ -57,7 +57,7 @@ function bridgeFixture(store = new Map()) {
       return elements.get(id);
     }
   };
-  const context = vm.createContext({ window, document, console, mqtt: { connect: () => client } });
+  const context = vm.createContext({ window, document, console, setTimeout, clearTimeout, mqtt: { connect: () => client } });
   vm.runInContext(readFileSync(new URL('../../js/sim/mqtt-bridge.js', import.meta.url), 'utf8'), context);
   const bridge = window.MqttBridge;
   bridge.ativar();
@@ -129,6 +129,18 @@ test('HTML aberto por file usa backend local; acesso por IP conserva o host', ()
     handlers.close();
     assert.deepEqual(states, [false, true, false]);
   }
+});
+
+test('início pago: corte manual invalida callback atrasado e reconexão não repete LIGAR', async () => {
+  const {client,bridge,published}=bridgeFixture(),callbacks=[];
+  client.publish=(topic,payload,opts,cb)=>{published.push({topic,payload,opts});callbacks.push(cb);};
+  const starting=bridge.iniciarCargaPaga(()=>true);
+  assert.equal(published[0].topic,bridge.topicoComando);assert.equal(published[0].payload,'LIGAR');
+  assert.equal(published[0].opts.qos,0);assert.equal(published[0].opts.retain,false);
+  bridge.cortarCarga();callbacks[0]();
+  await assert.rejects(starting,/início do ESP/);
+  callbacks[1]();client.connected=false;client.emit('close');client.connected=true;client.emit('connect');
+  assert.equal(published.filter(p=>p.payload==='LIGAR').length,1);
 });
 
 test('ponte recebe texto puro; ignora retain, status e tópico interno de relé', () => {

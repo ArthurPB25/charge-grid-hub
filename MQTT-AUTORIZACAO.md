@@ -82,6 +82,28 @@ pronto para produção. Para sessões Pix, o servidor confere a aprovação, o v
 com estação, veículo e bateria/meta; cada pagamento libera somente uma sessão.
 Esse vínculo fica na memória: reiniciar o backend exige tratamento pelo operador
 para cobranças anteriores e não constitui conciliação financeira permanente.
+
+## Cartão InfiniteTap e botão Conectar
+
+Após o pagamento no cartão, somente o botão **Conectar** pode iniciar a estação.
+Na Estação 01, o totem exige MQTT conectado e nenhum desligamento pendente,
+aguarda a confirmação do vínculo WebSocket do pedido e solicita a sessão ao
+servidor. O servidor valida novamente o pagamento e a estação. Com a sessão
+ativa e corrente autorizada maior que zero, o totem publica **LIGAR em
+`meu_projeto/tomada/comando`**, compatível com o ESP original.
+
+Se o envio falhar, o pedido pago permanece disponível no mesmo botão. Repetir
+Conectar recupera a mesma sessão, sem cobrar ou criar outra. Recarregar a página
+preserva esse acompanhamento, mas nunca reenvia LIGAR automaticamente. Sessões
+encerradas ou sem potência disponível não podem ser energizadas por uma resposta
+antiga. As estações 02 a 04 continuam simuladas.
+
+O LIGAR inicial usa QoS0 e retain:false, com fila offline desabilitada; o retorno
+da publicação indica envio, não confirmação física do ESP. O desligamento
+manual mantém QoS1 e persistência. Pausa/retomada automáticas continuam no tópico
+`/rele` e dependem de firmware que também o assine; o ESP original que só assina
+`/comando` tem apenas início e corte manual compatíveis. Este ajuste não altera
+o firmware, o aplicativo InfinitePay nem os critérios financeiros do pagamento.
 A perda do navegador cancela somente a autorização pendente; sessões iniciadas
 continuam no servidor. A ponte MQTT física ainda depende do navegador, portanto
 esta mudança não oferece supervisão física durante uma desconexão. Reiniciar o

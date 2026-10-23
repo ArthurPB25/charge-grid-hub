@@ -91,8 +91,79 @@ test('InfiniteTap totem: request preserva status HTTP para distinguir pedido per
 test('InfiniteTap físico preserva pedido pago enquanto houver desligamento pendente e permite nova sessão depois', async () => {
   const {client,context,messages}=setup();let calls=0,ready=false;
   client.order={id:'paid',token:'secret',stationId:1,state:'paid'};
-  context.window.MqttBridge={prepararNovaRecarga:()=>ready};
-  client.request=async()=>{calls++;return {state:'released'};};
+  const session={id:'session',status:'charging',evse:{stationId:1,commandedA:16}};
+  Object.assign(context.window.SimClient,{connected:true,snapshot:{sessions:[session]},watchTapOrder:async()=>{},waitForTapSession:async()=>session});
+  context.window.MqttBridge={ativar(){},prontoParaIniciarCarga:()=>ready,prepararNovaRecarga:()=>ready,iniciarCargaPaga:async permitted=>assert.equal(permitted(),true)};
+  client.request=async()=>{calls++;return {state:'released',sessionId:session.id,physical:{active:true,command:'LIGAR'}};};
   await client.connect();assert.equal(calls,0);assert.equal(client.order.state,'paid');assert.equal(messages.length,0);
   ready=true;await client.connect();assert.equal(calls,1);assert.equal(client.order,null);assert.equal(messages.length,1);
+});
+
+test('InfiniteTap físico: ausência de potência conserva Conectar e nunca publica LIGAR', async () => {
+  const {client,context,messages}=setup();let publishes=0;
+  const session={id:'session',status:'suspended',evse:{stationId:1,commandedA:0}};
+  client.order={id:'paid',token:'secret',stationId:1,state:'paid'};
+  Object.assign(context.window.SimClient,{connected:true,snapshot:{sessions:[session]},watchTapOrder:async()=>{},waitForTapSession:async()=>session});
+  context.window.MqttBridge={ativar(){},prontoParaIniciarCarga:()=>true,prepararNovaRecarga:()=>true,iniciarCargaPaga:async()=>{publishes++;}};
+  client.request=async()=>({state:'released',sessionId:session.id,physical:{active:true,command:'DESLIGAR'}});
+  await client.connect();assert.equal(publishes,0);assert.equal(messages.length,0);assert.equal(client.order.state,'released');
+});
+
+test('InfiniteTap físico: cancelamento enquanto aguarda vínculo impede envio atrasado ao backend', async () => {
+  const {client,context,messages}=setup();let finish,calls=0;
+  client.order={id:'paid',token:'secret',stationId:1,state:'paid'};
+  context.window.MqttBridge={ativar(){},prontoParaIniciarCarga:()=>true,prepararNovaRecarga:()=>true};
+  context.window.SimClient.watchTapOrder=()=>new Promise(resolve=>{finish=resolve;});
+  client.request=async()=>{calls++;};
+  const pending=client.connect();client.forget();finish();await pending;
+  assert.equal(calls,0);assert.equal(messages.length,0);
+});
+
+test('InfiniteTap físico: restaurar sessão liberada conserva recuperação sem religar automaticamente', async () => {
+  const {client,steps,store,messages}=setup();
+  client.order={id:'paid',token:'secret',stationId:1,state:'released',sessionId:'session'};
+  client.request=async()=>({...client.order});
+  await client.poll();assert.equal(client.order.state,'released');assert.equal(steps.at(-1),'tap-confirmed');
+  assert.equal(JSON.parse(store.get('chargegrid-tap-order')).token,'secret');assert.equal(messages.length,0);
+});
+
+test('InfiniteTap físico: consulta iniciada antes de Conectar não descarta pedido durante envio', async () => {
+  const {client,messages}=setup();let finish;
+  client.order={id:'paid',token:'secret',stationId:1,state:'paid'};
+  client.request=()=>new Promise(resolve=>{finish=resolve;});
+  const polling=client.poll();client.connecting=true;finish({state:'released'});await polling;
+  assert.equal(client.order.state,'paid');assert.equal(messages.length,0);
+});
+
+test('vínculo do totem: aguarda resposta correspondente, rejeita queda e remove esperas', async () => {
+  const window={},sent=[],timers=new Set();
+  vm.runInNewContext(fs.readFileSync(new URL('../../js/sim-client.js',import.meta.url),'utf8'),{
+    window,console,WebSocket:{OPEN:1},setTimeout:fn=>{timers.add(fn);return fn;},clearTimeout:fn=>timers.delete(fn)
+  });
+  const sim=window.SimClient;sim.connected=true;
+  sim.ws={readyState:1,send:raw=>sent.push(JSON.parse(raw))};
+  let done=false;const waiting=sim.watchTapOrder('paid','secret').then(()=>{done=true;});
+  sim._onMessage({type:'tap-demo:watched',data:{id:'other',requestId:sent[0].payload.requestId}});
+  await Promise.resolve();assert.equal(done,false);
+  sim._onMessage({type:'tap-demo:watched',data:{id:'paid',requestId:sent[0].payload.requestId}});
+  await waiting;assert.equal(sim._tapWatchRequests.size,0);assert.equal(timers.size,0);
+  const interrupted=sim.watchTapOrder('paid','secret');sim._connectionChanged(false);
+  await assert.rejects(interrupted,/desconectado/);assert.equal(timers.size,0);assert.equal(sim._tapWatchRequests.size,0);
+  sim.connected=true;const expired=sim.watchTapOrder('paid','secret');[...timers][0]();
+  await assert.rejects(expired,/não confirmou/);assert.equal(timers.size,0);assert.equal(sim._tapWatchRequests.size,0);
+});
+
+test('consulta do pagamento continua funcionando durante a criação inicial do pedido', async () => {
+  const {client,steps}=setup();client.busy=true;
+  client.request=async()=>({state:'paid',stationId:2,vehicle:'Carro'});
+  await client.poll();assert.equal(client.order.state,'paid');assert.equal(steps.at(-1),'tap-confirmed');
+});
+
+test('queda de MQTT durante vínculo do totem não cria sessão nem perde pagamento', async () => {
+  const {client,context}=setup();let ready=true,calls=0;
+  client.order={id:'paid',token:'secret',stationId:1,state:'paid'};
+  context.window.MqttBridge={ativar(){},prontoParaIniciarCarga:()=>ready,prepararNovaRecarga:()=>true};
+  context.window.SimClient.watchTapOrder=async()=>{ready=false;};
+  client.request=async()=>{calls++;};await client.connect();
+  assert.equal(calls,0);assert.equal(client.order.state,'paid');
 });

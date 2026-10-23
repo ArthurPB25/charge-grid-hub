@@ -21,7 +21,10 @@ export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, au
   const tapWatchers = new Map();
   tapDemo?.setBeforeStart(order => {
     const owner = tapWatchers.get(order.id);
-    if (order.config.stationId === 1) userSessionOwner = owner?.readyState === owner?.OPEN ? owner : null;
+    if (order.config.stationId === 1) {
+      if (!owner || owner.readyState !== owner.OPEN) throw Object.assign(new Error('Reconecte o totem antes de iniciar o ESP. O pagamento foi preservado.'), { status: 409 });
+      userSessionOwner = owner;
+    }
     tapWatchers.delete(order.id);
   });
 
@@ -76,6 +79,9 @@ export function attachWebSocket(httpServer, SimEngine, OcppClient, ModbusBus, au
         case 'tap-demo:watch':
           if (!tapDemo?.canWatch(p.id, p.token)) return commandError();
           tapWatchers.set(p.id, ws);
+          if (typeof p.requestId === 'string' && p.requestId.length <= 80) {
+            ws.send(JSON.stringify({ type: 'tap-demo:watched', data: { id: p.id, requestId: p.requestId } }));
+          }
           break;
         case 'start-session': {
           const revision = ++requestRevision;

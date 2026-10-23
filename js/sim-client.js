@@ -19,6 +19,8 @@ window.SimClient = {
   _relayListeners: [],
   _authorizationListeners: [],
   _connectionListeners: [],
+  _tapWatchRequests: new Map(),
+  _tapWatchSequence: 0,
   connected: false,
   _reconnectDelay: 1000,
 
@@ -66,6 +68,9 @@ window.SimClient = {
       for (const fn of this._relayListeners) fn(msg.command);
     } else if (msg.type === 'authorization') {
       for (const fn of this._authorizationListeners) fn(msg.data);
+    } else if (msg.type === 'tap-demo:watched') {
+      const pending = this._tapWatchRequests.get(msg.data?.requestId);
+      if (pending && pending.id === msg.data?.id) pending.finish();
     }
   },
 
@@ -94,7 +99,40 @@ window.SimClient = {
 
   _connectionChanged(connected) {
     this.connected = connected;
+    if (!connected) for (const pending of [...this._tapWatchRequests.values()]) pending.finish(new Error('Totem desconectado. Reconecte e toque em Conectar novamente, sem pagar outra vez.'));
     for (const fn of this._connectionListeners) fn(connected);
+  },
+
+  watchTapOrder(id, token) {
+    if (!this.connected) return Promise.reject(new Error('Reconecte o totem antes de iniciar o ESP. O pagamento foi preservado.'));
+    const requestId = 'tap-' + (++this._tapWatchSequence);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => finish(new Error('O servidor não confirmou a conexão do totem. Tente Conectar novamente, sem pagar outra vez.')), 5000);
+      const finish = error => {
+        clearTimeout(timer); this._tapWatchRequests.delete(requestId);
+        if (error) reject(error); else resolve();
+      };
+      this._tapWatchRequests.set(requestId, { id, finish });
+      if (!this.send('tap-demo:watch', { id, token, requestId })) finish(new Error('Totem desconectado. O pagamento foi preservado.'));
+    });
+  },
+
+  waitForTapSession(sessionId) {
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        this._snapshotListeners = this._snapshotListeners.filter(fn => fn !== inspect);
+        this._connectionListeners = this._connectionListeners.filter(fn => fn !== connection);
+      };
+      const inspect = snapshot => {
+        const session = snapshot?.sessions?.find(s => s.id === sessionId && s.evse.stationId === 1);
+        if (session) { cleanup(); resolve(session); }
+      };
+      const connection = connected => { if (!connected) { cleanup(); reject(new Error('Conexão com o totem perdida. Tente Conectar novamente, sem pagar outra vez.')); } };
+      const timer = setTimeout(() => { cleanup(); reject(new Error('Aguardando o estado atualizado da estação. Toque em Conectar novamente, sem pagar outra vez.')); }, 5000);
+      this._snapshotListeners.push(inspect); this._connectionListeners.push(connection);
+      if (!this.connected) connection(false); else inspect(this.snapshot);
+    });
   },
 
   send(type, payload) {
