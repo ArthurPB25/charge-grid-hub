@@ -8,7 +8,6 @@ Sprint 4 · FIAP · 23/10/2026
 |---|---|
 | Arthur Primo Brandão | 573572 |
 | Felipe Gouveia Braga | 568956 |
-| Isaías Hörlle Sobral | 568990 |
 | Leandro Cavaccini Brito | 570556 |
 | Lucas Dorice Dos Santos | 568692 |
 | Vinicius de Oliveira Coppola | 571699 |
